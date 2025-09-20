@@ -9,47 +9,38 @@ import plotly.graph_objects as go
 # ----------------------------
 # Page setup
 # ----------------------------
-st.set_page_config(page_title="Lebanon Water — Springs & Sources", layout="wide")
-st.title("Lebanon Water — Springs & Sources")
-st.markdown(
-    "Explore **permanent vs. seasonal springs** and the **mix of potable water sources** by governorate. "
-    "Use the **filters in the sidebar** to change what you see."
-)
+st.set_page_config(page_title="Lebanon Water — Springs & Network", layout="wide")
+st.title("Lebanon Water — Springs & Network")
+st.caption("Filter, sort, and rank governorates to explore seasonal dependence and network condition.")
 
 # ----------------------------
-# Load data
+# Load data (no uploader)
 # ----------------------------
 @st.cache_data
-def load_csv_from_path(path: str) -> pd.DataFrame:
+def load_csv(path: str) -> pd.DataFrame:
     return pd.read_csv(path)
 
-uploaded = st.sidebar.file_uploader("Upload CSV (water_resources.csv)", type=["csv"])
-if uploaded is not None:
-    df = load_csv_from_path(uploaded)
-else:
-    st.sidebar.info("No file uploaded — trying to read `water_resources.csv` from the repo.")
-    try:
-        df = load_csv_from_path("water_resources.csv")
-    except Exception:
-        st.error("Could not load data. Upload your CSV or add `water_resources.csv` beside app.py.")
-        st.stop()
+try:
+    df = load_csv("water_resources.csv")
+except Exception:
+    st.error("Could not load `water_resources.csv`. Make sure it sits next to `app.py` in your repo.")
+    st.stop()
 
-# ----------------------------
-# Light cleaning & flexible columns
-# ----------------------------
 df.columns = [c.strip() for c in df.columns]
 
+# ----------------------------
+# Flexible columns & light cleaning
+# ----------------------------
 def parse_ref_area(s: str):
-    """Return (AreaName, AreaType) from strings like 'Akkar_Governorate' / 'Zahle_District'."""
     if not isinstance(s, str):
         return (np.nan, "Other")
     m = re.match(r"^(.*)_(Governorate|District)$", s.strip())
     if m:
-        nm, t = m.groups()
-        return (nm.replace("_", " ").strip(), t)
+        name_raw, a_type = m.groups()
+        return (name_raw.replace("_", " ").strip(), a_type)
     return (s.replace("_", " ").strip(), "Other")
 
-# If GovernorateName is missing, try to derive from refArea
+# If GovernorateName missing, derive from refArea
 if "GovernorateName" not in df.columns:
     if "refArea" in df.columns:
         area_parsed = df["refArea"].apply(parse_ref_area)
@@ -57,19 +48,16 @@ if "GovernorateName" not in df.columns:
         df["GovernorateName"] = np.where(df["AreaType"] == "Governorate", df["AreaName"], np.nan)
         df["DistrictName"]    = np.where(df["AreaType"] == "District",     df["AreaName"], np.nan)
     else:
-        st.error("Missing `GovernorateName` and `refArea`. I can't determine geography.")
+        st.error("Missing `GovernorateName` and `refArea` — cannot determine geography.")
         st.stop()
 
-# Tidy Town if present
 HAS_TOWN = "Town" in df.columns
 if HAS_TOWN:
     df["Town"] = (
-        df["Town"].astype(str)
-        .str.strip()
-        .str.replace(r"\s+", " ", regex=True)
+        df["Town"].astype(str).str.strip().str.replace(r"\s+", " ", regex=True)
     )
 
-# Normalize a few governorate names
+# Normalize a few governorate spellings
 gov_std = {"North": "North Lebanon", "South": "South Lebanon", "Beqaa": "Bekaa"}
 df["GovernorateName"] = df["GovernorateName"].replace(gov_std)
 
@@ -79,7 +67,7 @@ def first_present(frame: pd.DataFrame, *cands):
             return c
     return None
 
-# Springs (required)
+# Required: springs
 COL_SPRING_PERM = first_present(
     df, "Total number of permanent water springs", "Permanent springs", "Permanent"
 )
@@ -90,72 +78,74 @@ if not COL_SPRING_PERM or not COL_SPRING_SEAS:
     st.error("Missing spring columns (permanent/seasonal).")
     st.stop()
 
-# Water source (optional for heatmap)
-COL_PUBLIC  = first_present(df, "Public network",  "Potable water source - public network")
-COL_WELL    = first_present(df, "Artesian well",   "Potable water source - artesian well")
-COL_GALLONS = first_present(df, "Gallons purchase","Potable water source - gallons purchase")
-COL_POINT   = first_present(df, "Water point",     "Potable water source - water point")
-COL_OTHER   = first_present(df, "Other",           "Potable water source - other")
-WATER_SRC_COLS = [c for c in [COL_PUBLIC, COL_WELL, COL_GALLONS, COL_POINT, COL_OTHER] if c]
+# Optional: network condition
+COL_STATE_GOOD = first_present(df, "State of the water network - good", "Good %", "Good")
+COL_STATE_ACC  = first_present(df, "State of the water network - acceptable", "Acceptable %", "Acceptable")
+COL_STATE_BAD  = first_present(df, "State of the water network - bad", "Bad %", "Bad")
 
-# Coerce numerics where relevant
-for c in [COL_SPRING_PERM, COL_SPRING_SEAS] + WATER_SRC_COLS:
-    if c:
+for c in [COL_SPRING_PERM, COL_SPRING_SEAS, COL_STATE_GOOD, COL_STATE_ACC, COL_STATE_BAD]:
+    if c and c in df.columns:
         df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0)
-
-if len(WATER_SRC_COLS) < 2:
-    st.info("Water-source columns are incomplete in this CSV — the heatmap may be limited.")
 
 # ----------------------------
 # Sidebar interactions
 # ----------------------------
-govs_all = sorted([g for g in df["GovernorateName"].dropna().unique()])
-gov_select = st.sidebar.multiselect("Governorates", govs_all, default=govs_all)
+st.sidebar.header("Filters")
 
-mode = st.sidebar.radio(
-    "Value mode",
-    ["Absolute totals", "Normalized"],
+govs_all = sorted(df["GovernorateName"].dropna().unique().tolist())
+pick_govs = st.sidebar.multiselect("Governorates", govs_all, default=govs_all)
+
+display_mode = st.sidebar.radio(
+    "Springs scale",
+    ["Totals", "Per-town average"],
     index=0,
-    help=(
-        "Absolute: totals.  Normalized: "
-        "Springs = per-town average; Heatmap = share % within governorate."
-    ),
+    help="Per-town average divides by the number of unique towns in each governorate."
 )
 
-# If user picks Normalized but we don't have Town, fall back gracefully
-if mode == "Normalized" and not HAS_TOWN:
-    st.sidebar.warning("No `Town` column — Normalized mode for springs will use totals.")
-    springs_normalized = False
-else:
-    springs_normalized = (mode == "Normalized")
+st.sidebar.markdown("---")
+st.sidebar.subheader("Pyramid sorting")
+sort_opt = st.sidebar.selectbox(
+    "Sort by",
+    [
+        "Total springs",
+        "Seasonal − Permanent (gap)",
+        "Seasonal / Permanent (ratio)",
+        "Seasonal only",
+        "Permanent only",
+    ],
+    index=1,
+)
+ascending = st.sidebar.checkbox("Ascending order", value=False)
+top_n_pyr = st.sidebar.slider("Show top-N governorates (after sort)", 1, len(pick_govs) if pick_govs else 1, min(8, len(pick_govs) if pick_govs else 1))
 
-data = df[df["GovernorateName"].isin(gov_select)].copy()
+st.sidebar.markdown("---")
+st.sidebar.subheader("Network sorting")
+net_sort_opt = st.sidebar.selectbox(
+    "Sort by",
+    ["Good %", "Bad %", "Acceptable %"],
+    index=0,
+)
+net_ascending = st.sidebar.checkbox("Ascending", value=False, key="net_asc")
+top_n_net = st.sidebar.slider("Show top-N governorates", 1, len(pick_govs) if pick_govs else 1, min(8, len(pick_govs) if pick_govs else 1), key="net_n")
+show_labels_net = st.sidebar.checkbox("Show labels on bars", value=True)
+
+data = df[df["GovernorateName"].isin(pick_govs)].copy()
 if data.empty:
-    st.warning("No data after filtering. Pick at least one governorate.")
+    st.warning("No rows after filtering. Select at least one governorate.")
     st.stop()
 
 # ----------------------------
-# Viz 1: Pyramid — Permanent vs Seasonal springs
+# Viz 1: Pyramid — Permanent vs Seasonal
 # ----------------------------
 st.subheader("Permanent vs Seasonal Springs by Governorate")
 
 spr = (
-    data.dropna(subset=["GovernorateName"])
-        .groupby("GovernorateName", as_index=False)[[COL_SPRING_PERM, COL_SPRING_SEAS]]
-        .sum()
+    data.groupby("GovernorateName", as_index=False)[[COL_SPRING_PERM, COL_SPRING_SEAS]].sum()
 )
 
-# Sorting so larger totals end up visually near the top
-spr["Total"] = spr[COL_SPRING_PERM] + spr[COL_SPRING_SEAS]
-spr = spr.sort_values("Total", ascending=True)
-
-if springs_normalized:
-    towns = (
-        data.dropna(subset=["GovernorateName"])
-            .groupby("GovernorateName", as_index=False)["Town"].nunique()
-            .rename(columns={"Town": "Towns"})
-    )
-    spr = spr.merge(towns, on="GovernorateName", how="left")
+if display_mode == "Per-town average" and HAS_TOWN:
+    town_counts = data.groupby("GovernorateName", as_index=False)["Town"].nunique().rename(columns={"Town":"Towns"})
+    spr = spr.merge(town_counts, on="GovernorateName", how="left")
     spr["Towns"] = spr["Towns"].replace(0, np.nan)
     spr[COL_SPRING_PERM] = (spr[COL_SPRING_PERM] / spr["Towns"]).round(2)
     spr[COL_SPRING_SEAS] = (spr[COL_SPRING_SEAS] / spr["Towns"]).round(2)
@@ -163,14 +153,31 @@ if springs_normalized:
 else:
     x_title = "Number of springs"
 
+# Sorting metric
+spr["Total"] = spr[COL_SPRING_PERM] + spr[COL_SPRING_SEAS]
+spr["Gap"]   = spr[COL_SPRING_SEAS] - spr[COL_SPRING_PERM]
+spr["Ratio"] = np.where(spr[COL_SPRING_PERM] > 0, spr[COL_SPRING_SEAS] / spr[COL_SPRING_PERM], np.nan)
+
+if sort_opt == "Total springs":
+    spr = spr.sort_values("Total", ascending=ascending)
+elif sort_opt == "Seasonal − Permanent (gap)":
+    spr = spr.sort_values("Gap", ascending=ascending)
+elif sort_opt == "Seasonal / Permanent (ratio)":
+    spr = spr.sort_values("Ratio", ascending=ascending)
+elif sort_opt == "Seasonal only":
+    spr = spr.sort_values(COL_SPRING_SEAS, ascending=ascending)
+elif sort_opt == "Permanent only":
+    spr = spr.sort_values(COL_SPRING_PERM, ascending=ascending)
+
+spr = spr.tail(top_n_pyr)  # top-N after sort
 govs = spr["GovernorateName"].tolist()
 perm = spr[COL_SPRING_PERM].to_numpy()
 seas = spr[COL_SPRING_SEAS].to_numpy()
 
-# dynamic symmetric axis
 max_abs_val = float(max(perm.max() if len(perm) else 0, seas.max() if len(seas) else 0))
-max_abs = int(np.ceil(max_abs_val / 50.0)) * 50 or 50
-step    = max(50, max_abs // 5)
+step_base = 50 if display_mode == "Totals" else 1
+max_abs = int(np.ceil(max_abs_val / step_base) * step_base) or step_base
+step    = max(step_base, max_abs // 5)
 tickvals = list(range(-max_abs, max_abs + step, step))
 ticktext = [str(abs(v)) for v in tickvals]
 
@@ -181,18 +188,18 @@ fig_pyr = go.Figure()
 fig_pyr.add_trace(go.Bar(
     x=-perm, y=govs, orientation="h",
     name="Permanent (left)", marker_color=blue_dark,
-    text=[f"{v:,.2f}" if springs_normalized else f"{int(v):,}" for v in perm],
+    text=[f"{v:,.2f}" if display_mode!="Totals" else f"{int(v):,}" for v in perm],
     textposition="outside", cliponaxis=False
 ))
 fig_pyr.add_trace(go.Bar(
     x=seas, y=govs, orientation="h",
     name="Seasonal (right)", marker_color=blue_medium,
-    text=[f"{v:,.2f}" if springs_normalized else f"{int(v):,}" for v in seas],
+    text=[f"{v:,.2f}" if display_mode!="Totals" else f"{int(v):,}" for v in seas],
     textposition="outside", cliponaxis=False
 ))
 fig_pyr.update_traces(marker_line_color="white", marker_line_width=0.8)
 fig_pyr.update_layout(
-    template="plotly_white", barmode="overlay", bargap=0.2,
+    template="plotly_white", barmode="overlay", bargap=0.25,
     xaxis=dict(
         title=x_title, range=[-max_abs, max_abs],
         tickmode="array", tickvals=tickvals, ticktext=ticktext,
@@ -200,82 +207,88 @@ fig_pyr.update_layout(
     ),
     yaxis=dict(title="Governorate"),
     legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
-    margin=dict(l=100, r=40, t=20, b=50)
+    margin=dict(l=110, r=40, t=20, b=50)
 )
 st.plotly_chart(fig_pyr, use_container_width=True)
 
-# quick insight
-gap = (spr[COL_SPRING_SEAS] - spr[COL_SPRING_PERM])
+# One-sentence takeaway
+gap = spr["Gap"]
 max_idx = gap.idxmax()
 st.caption(
-    f"**Insight:** Seasonal exceeds permanent most in **{spr.loc[max_idx, 'GovernorateName']}** "
-    f"(Δ = {gap.loc[max_idx]:.2f}{' avg/town' if springs_normalized else ''})."
+    f"**Largest seasonal dependence:** {spr.loc[max_idx,'GovernorateName']} "
+    f"(gap = {gap.loc[max_idx]:.2f}{' avg/town' if display_mode!='Totals' else ''})."
 )
 
 # ----------------------------
-# Viz 2: Heatmap — Potable water source mix
+# Viz 2: Network condition — 100% stacked bar
 # ----------------------------
-st.subheader("Potable Water Source Mix by Governorate")
+st.subheader("State of Water Network by Governorate (100% Stacked)")
 
-if len(WATER_SRC_COLS) >= 2:
-    src = (
-        data.dropna(subset=["GovernorateName"])
-            .groupby("GovernorateName", as_index=False)[WATER_SRC_COLS]
-            .sum()
+if COL_STATE_GOOD and COL_STATE_ACC and COL_STATE_BAD:
+    net = (
+        data.groupby("GovernorateName", as_index=False)[[COL_STATE_GOOD, COL_STATE_ACC, COL_STATE_BAD]].sum()
     )
 
-    if mode == "Normalized":
-        vals = src[WATER_SRC_COLS].astype(float)
-        row_sum = vals.sum(axis=1).replace(0, np.nan)
-        heat = (vals.div(row_sum, axis=0) * 100).round(1)
-        cbar_title = "Share (%)"
-        text_auto = True
-    else:
-        heat = src[WATER_SRC_COLS].round(0)
-        cbar_title = "Total count"
-        text_auto = True
+    # If the columns are raw counts, convert to %; if they already are %, this keeps them.
+    vals = net[[COL_STATE_GOOD, COL_STATE_ACC, COL_STATE_BAD]].astype(float)
+    row_sum = vals.sum(axis=1).replace(0, np.nan)
+    net_pct = (vals.div(row_sum, axis=0) * 100).round(1)
 
-    # Human-friendly column order/names if possible
-    rename_nice = {
-        COL_PUBLIC: "Public network",
-        COL_WELL: "Artesian well",
-        COL_GALLONS: "Gallons",
-        COL_POINT: "Water point",
-        COL_OTHER: "Other",
+    net_pct["GovernorateName"] = net["GovernorateName"]
+
+    # Sorting for network chart
+    sort_key_map = {
+        "Good %": COL_STATE_GOOD,
+        "Bad %":  COL_STATE_BAD,
+        "Acceptable %": COL_STATE_ACC,
     }
-    heat = heat.rename(columns={k: v for k, v in rename_nice.items() if k in heat.columns})
-    heat.index = src["GovernorateName"]
+    net_pct = net_pct.sort_values(sort_key_map[net_sort_opt], ascending=net_ascending)
+    net_pct = net_pct.tail(top_n_net)
 
-    fig_heat = px.imshow(
-        heat,
-        text_auto=text_auto,
-        color_continuous_scale=px.colors.sequential.Blues,
-        aspect="auto",
-        labels=dict(x="Source", y="Governorate", color=cbar_title),
+    # Rename to nice legends
+    nice = {
+        COL_STATE_GOOD: "Good %",
+        COL_STATE_ACC:  "Acceptable %",
+        COL_STATE_BAD:  "Bad %",
+    }
+    net_pct = net_pct.rename(columns=nice)
+
+    net_long = net_pct.melt(
+        id_vars="GovernorateName",
+        value_vars=["Good %", "Acceptable %", "Bad %"],
+        var_name="Condition", value_name="Share"
     )
-    fig_heat.update_layout(template="plotly_white", margin=dict(l=10, r=10, t=10, b=10))
-    st.plotly_chart(fig_heat, use_container_width=True)
 
-    if mode == "Normalized" and "Public network" in heat.columns:
-        top_pub = heat["Public network"].sort_values(ascending=False).index[0]
-        st.caption(f"**Note:** In normalized mode, **{top_pub}** shows the highest public-network share.")
+    fig_net = px.bar(
+        net_long, x="Share", y="GovernorateName",
+        color="Condition", orientation="h",
+        color_discrete_map={
+            "Good %": "#2ECC71",       # green
+            "Acceptable %": "#F1C40F", # yellow
+            "Bad %": "#E74C3C",        # red
+        },
+        category_orders={"Condition": ["Good %", "Acceptable %", "Bad %"]},
+        text="Share" if show_labels_net else None
+    )
+    fig_net.update_layout(
+        template="plotly_white",
+        xaxis=dict(title="Share (%)", range=[0, 100]),
+        yaxis=dict(title="Governorate"),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+        margin=dict(l=110, r=40, t=20, b=50)
+    )
+    if show_labels_net:
+        fig_net.update_traces(texttemplate="%{text:.0f}%", textposition="outside", cliponaxis=False)
+    st.plotly_chart(fig_net, use_container_width=True)
+
+    st.caption(
+        "Tip: Sort by **Good %** to see strongest performers, or by **Bad %** to surface where the network struggles."
+    )
 else:
-    st.info("Not enough water-source columns to draw the heatmap.")
+    st.info("Network condition columns not found — this chart is disabled for this CSV.")
 
-# ----------------------------
-# Context / help
-# ----------------------------
-with st.expander("What am I looking at?"):
-    st.markdown(
-        """
-- **Pyramid chart**: compares **permanent** (left) vs **seasonal** (right) springs.  
-  Switch **Value mode** to *Normalized* for **per-town averages** (fairer across places with more towns).
-- **Heatmap**: shows the **mix of potable water sources** by governorate.  
-  In *Normalized* it shows **within-governorate shares**; in *Absolute* it shows **totals**.
-- The **Governorate filter** applies to all visuals.
-        """
-    )
 
 st.success("✅ Interactions wired: Governorate filter + Value mode switch (changes the data/plots).")
+
 
 

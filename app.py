@@ -53,6 +53,65 @@ else:
 for c in [COL_PERM, COL_SEAS] + WATER_SRC_COLS:
     if c in df.columns:
         df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0)
+import re
+
+# --- Auto-map headers to the names your app expects ---
+def norm(s):  # normalize strings for fuzzy matches
+    return re.sub(r'[^a-z0-9]+', '', str(s).lower())
+
+aliases = {
+    # required for filters/aggregations
+    "GovernorateName": ["GovernorateName","Governorate","Governarate","Gov","Mohafaza","Muhafazah","Muhafaza"],
+    "Town": ["Town","TownName","Locality","Village"],
+
+    # springs
+    "Total number of permanent water springs": [
+        "Total number of permanent water springs","Permanent springs","Permanent","Total permanent springs"
+    ],
+    "Total number of seasonal water springs": [
+        "Total number of seasonal water springs","Seasonal springs","Seasonal","Total seasonal water springs"
+    ],
+
+    # water source columns (optional but used in the heatmap)
+    "Public network": ["Public network","Public water","Network"],
+    "Artesian well": ["Artesian well","Well","Artesian"],
+    "Gallons purchase": ["Gallons purchase","Bottled gallons","Gallons"],
+    "Water point": ["Water point","Waterpoint","Point"],
+    "Other": ["Other","Others"],
+}
+
+# Build a rename map by fuzzy match
+rename_map = {}
+for target, opts in aliases.items():
+    # if already present, skip
+    if target in df.columns: 
+        continue
+    # try to find a close match among existing columns
+    for col in df.columns:
+        if any(norm(col) == norm(opt) or norm(opt) in norm(col) for opt in opts):
+            rename_map[col] = target
+            break
+
+# Apply renames
+if rename_map:
+    df = df.rename(columns=rename_map)
+
+# Hard stop with a clear message if a required column is still missing
+required = ["GovernorateName", "Total number of permanent water springs", "Total number of seasonal water springs"]
+missing = [c for c in required if c not in df.columns]
+if missing:
+    st.error(
+        "The CSV is missing required columns: "
+        + ", ".join(f"`{m}`" for m in missing)
+        + ".\n\nFound columns:\n"
+        + ", ".join(df.columns)
+    )
+    st.stop()
+
+# (Optional) show what was auto-mapped so you can verify
+if rename_map:
+    with st.expander("Column mappings applied"):
+        st.write(rename_map)
 
 # --------------------------
 # 2) Sidebar interactions (TWO main controls)
@@ -238,3 +297,4 @@ st.markdown(
 4. After it builds, copy the **public URL** and submit it for your assignment.
 """
 )
+

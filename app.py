@@ -295,6 +295,24 @@ fig_pyr.update_layout(
     margin=dict(l=110, r=40, t=20, b=50)
 )
 st.plotly_chart(fig_pyr, use_container_width=True)
+st.markdown("""
+### 🔎 Insights — Permanent vs Seasonal Springs by Governorate
+
+- **Clear seasonal dependence hotspots.** Governors like **Akkar** and **Mount Lebanon** consistently show **much larger seasonal totals** than permanent. That means stronger exposure to dry-season shortfalls and a bigger need for **storage/transfer** solutions and **summer operations**.
+- **Mid-pack but still seasonal-leaning.** **Bekaa** and **Baalbek-Hermel** usually sit in the middle on totals, yet still skew **seasonal > permanent**. These are good candidates for **spring protection/rehabilitation** to lift the permanent base.
+- **Lower total supply.** **North Lebanon** often appears with the **shortest bars** on both sides—fewer mapped springs overall. Planning there should combine **demand management** with **diversification** (e.g., interconnections, groundwater where safe).
+- **Per-town mode can reshuffle priorities.** Switching to **“Per-town average”** reduces the edge of large/urbanized governorates. Places with many towns but modest totals may **rise** in the ranking, revealing where **access per community** is thin even if governorate totals look fine.
+- **A practical risk score.** The **Seasonal ÷ Permanent ratio** is a quick stress indicator:
+  - **>2** → high seasonal exposure; prioritize **storage**, **leak control**, and **emergency trucking plans**.
+  - **≈1** → balanced; maintain protection of permanent springs.
+  - **<1** → permanent-heavy; focus on **quality and network reliability**.
+- **Town coverage matters.** Where a governorate’s **town count is large** but **per-town averages are low**, access is **thinly spread**. That often points to **service equity** issues, not just volume.
+
+**Action cues**
+- Accelerate **permanent source development** (spring catchments, wellfield rehab) in seasonal-heavy areas.
+- Pair seasonal surpluses with **off-season storage** (reservoirs, tanks) and **pressure-managed distribution** to reduce losses.
+- Use the **Per-town** view to target **underserved towns** inside otherwise “high total” governorates.
+""")
 
 # ----------------------------
 # Viz 2: Network condition — 100% stacked bar
@@ -341,6 +359,21 @@ if COL_STATE_GOOD and COL_STATE_ACC and COL_STATE_BAD:
     st.plotly_chart(fig_net, use_container_width=True)
 else:
     st.info("Network condition columns not found — this chart is disabled for this CSV.")
+
+st.markdown("""
+### 🔎 Insights — State of Water Network by Governorate (100% Stacked)
+
+- **Rehabilitation front-runners.** **Baalbek-Hermel** shows the **lowest Good%** and a **high Bad%**, signaling **urgent asset renewal** (transmission mains, pumping, PRVs, and metering). **Akkar/Nabatieh** often show **elevated Bad%** too—prioritize targeted fixes.
+- **Relatively stable performers.** **South Lebanon** and **North Lebanon** tend to hold **higher Good%** and **lower Bad%**. Keep them there with **preventive maintenance** (active leak detection, valve audits, and energy optimization).
+- **Urban stress pattern.** **Mount Lebanon** is typically **Acceptable-heavy** with a non-trivial **Bad%**—consistent with large, pressurized, aging urban systems. The quick win is to **convert Yellow→Green** through **pressure management** and **district metered areas (DMAs)** rather than only big capex.
+- **Uneven reliability in mixed zones.** **Bekaa** tends to be **mixed**: decent Good% but still a **meaningful Bad%**. That suggests pockets where **rural network reach** or **terrain** drives higher breakage and losses.
+- **Cross-reading with the pyramid.** Places that are **seasonal-heavy** in the springs chart often show **more Acceptable/Bad** here (not causal, but consistent with **strain during dry months**, intermittent supply, and pressure swings).
+
+**Action cues**
+- **Triaging capex**: (1) **Baalbek-Hermel** network rehab, (2) hotspots in **Akkar/Nabatieh/Bekaa**, (3) **optimization** in **Mount Lebanon** (pressure/leaks/DMAs).
+- **Protect the greens** (North/South) with **condition-based maintenance** to avoid slippage.
+- Track progress by watching **Bad% shrink** and **Good% expand** after each intervention round.
+""")
 
 
 

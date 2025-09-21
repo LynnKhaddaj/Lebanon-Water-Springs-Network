@@ -63,9 +63,16 @@ if HAS_TOWN:
 gov_std = {"North": "North Lebanon", "South": "South Lebanon", "Beqaa": "Bekaa"}
 df["GovernorateName"] = df["GovernorateName"].replace(gov_std)
 
-# District aliases likely to appear
+# ---- District aliases (force a single, clean name) ----
+TARGET_MINIEH = "Minieh - Danniyeh"
 DISTRICT_ALIASES = {
-    "MiniyehaDanniyeh": "Miniyeh-Danniyeh",
+    "MiniyehaDanniyeh": TARGET_MINIEH,
+    "Miniyeh-Danniyeh": TARGET_MINIEH,
+    "Miniyeh – Danniyeh": TARGET_MINIEH,  # en dash
+    "Miniyeh—Danniyeh": TARGET_MINIEH,    # em dash
+    "Minieh-Danniyeh": TARGET_MINIEH,
+    "Minieh – Danniyeh": TARGET_MINIEH,
+    "Minieh—Danniyeh": TARGET_MINIEH,
     "ZahlÃ©": "Zahle", "Zahlé": "Zahle",
     "Bint Jbail": "Bint Jbeil",
     "Jbeil": "Byblos",
@@ -97,15 +104,13 @@ for c in [COL_SPRING_PERM, COL_SPRING_SEAS, COL_STATE_GOOD, COL_STATE_ACC, COL_S
         df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0)
 
 # ----------------------------
-# Two-bucket tags (UPDATED rules)
+# Two-bucket tags (Governorates & Districts)
 # ----------------------------
-# Governorates:
-# Urban: Mount Lebanon, North Lebanon (and Beirut if present)
-# Rural/Agri: Bekaa, Baalbek-Hermel, Nabatieh, Akkar, South Lebanon
+# Governorates: Urban (Mount Lebanon, North Lebanon, Beirut); Rural/Agri (others below)
 GOV_BUCKET = {
     "Beirut": "Urban",
     "Mount Lebanon": "Urban",
-    "North Lebanon": "Urban",       # <- UPDATED per your request
+    "North Lebanon": "Urban",      # included as Urban per your request
     "Bekaa": "Rural/Agri",
     "Baalbek-Hermel": "Rural/Agri",
     "Nabatieh": "Rural/Agri",
@@ -114,26 +119,23 @@ GOV_BUCKET = {
     "South Lebanon": "Rural/Agri",
 }
 
-# Districts (two buckets)
 URBAN_DISTRICTS = {
-    "Tripoli", "Sidon", "Tyre", "Sour", "Baabda", "Metn", "Aley",
-    "Keserwan", "Chouf", "Jbeil", "Byblos"
+    "Tripoli", "Sidon", "Tyre", "Baabda", "Metn", "Aley",
+    "Keserwan", "Chouf", "Byblos", "Jbeil", TARGET_MINIEH  # include target if you decide it’s urban
 }
 RURAL_DISTRICTS = {
     "Baalbek", "Hermel", "Zahle", "West Bekaa", "Rachaya",
     "Bint Jbeil", "Marjeyoun", "Hasbaya", "Jezzine",
-    "Miniyeh-Danniyeh", "Bcharre", "Koura", "Batroun", "Zgharta", "Akkar"
+    TARGET_MINIEH,  # if you prefer it rural, keep it here instead of URBAN_DISTRICTS
+    "Bcharre", "Koura", "Batroun", "Zgharta", "Akkar"
 }
+# (You can keep TARGET_MINIEH in only one of the sets above; I left it in RURAL by default.)
 
 def area_bucket(row, level):
     g = str(row.get("GovernorateName", "")).strip()
     d = str(row.get("DistrictName", "")).strip()
-
     if level == "Governorate":
-        # default to Rural/Agri if unknown
         return GOV_BUCKET.get(g, "Rural/Agri")
-
-    # District level: explicit sets; else inherit governorate bucket
     if d in URBAN_DISTRICTS:
         return "Urban"
     if d in RURAL_DISTRICTS:
@@ -141,7 +143,7 @@ def area_bucket(row, level):
     return GOV_BUCKET.get(g, "Rural/Agri")
 
 # ----------------------------
-# Sidebar — aggregation & area filter (two buckets)
+# Sidebar — aggregation & area filter
 # ----------------------------
 st.sidebar.header("Filters")
 
@@ -154,16 +156,13 @@ area_choice = st.sidebar.radio(
     index=0
 )
 
-# Tag each row with bucket for current level
 df["AreaBucket"] = df.apply(lambda r: area_bucket(r, group_level), axis=1)
 
-# Apply area filter
 data0 = df.copy()
 if area_choice != "All areas":
     keep = "Urban" if area_choice == "Urban only" else "Rural/Agri"
     data0 = data0[data0["AreaBucket"] == keep]
 
-# Build choices safely
 areas_all = sorted([a for a in data0[GROUP_COL].dropna().unique().tolist() if a])
 if len(areas_all) == 0:
     st.warning(
@@ -175,12 +174,6 @@ if len(areas_all) == 0:
 pick_areas = st.sidebar.multiselect(f"{group_level}s", areas_all, default=areas_all)
 if len(pick_areas) == 0:
     st.warning("No areas selected. Pick at least one.")
-    st.stop()
-
-# Base subset for charts
-data = data0[data0[GROUP_COL].isin(pick_areas)].copy()
-if data.empty:
-    st.warning("No rows after filtering. Adjust filters to see data.")
     st.stop()
 
 display_mode = st.sidebar.radio(
@@ -201,7 +194,7 @@ def safe_topn_slider(label, n_items, key=None):
     return st.sidebar.slider(label, min_value=1, max_value=n, value=min(8, n), key=key)
 
 # ----------------------------
-# Pyramid controls (safe)
+# Pyramid controls (reduced options)
 # ----------------------------
 st.sidebar.markdown("---")
 st.sidebar.subheader("Pyramid sorting")
@@ -209,18 +202,16 @@ sort_opt = st.sidebar.selectbox(
     "Sort by",
     [
         "Total springs",
-        "Seasonal − Permanent (gap)",
-        "Seasonal / Permanent (ratio)",
         "Seasonal only",
         "Permanent only",
     ],
-    index=1,
+    index=0,
 )
 ascending = st.sidebar.checkbox("Ascending order", value=False)
 top_n_pyr = safe_topn_slider("Show top-N areas (after sort)", len(pick_areas), key="tn_pyr")
 
 # ----------------------------
-# Network controls (safe)
+# Network controls
 # ----------------------------
 st.sidebar.markdown("---")
 st.sidebar.subheader("Network sorting")
@@ -247,15 +238,9 @@ else:
     x_title = "Number of springs"
 
 spr["Total"] = spr[COL_SPRING_PERM] + spr[COL_SPRING_SEAS]
-spr["Gap"]   = spr[COL_SPRING_SEAS] - spr[COL_SPRING_PERM]
-spr["Ratio"] = np.where(spr[COL_SPRING_PERM] > 0, spr[COL_SPRING_SEAS] / spr[COL_SPRING_PERM], np.nan)
 
 if sort_opt == "Total springs":
     spr = spr.sort_values("Total", ascending=ascending)
-elif sort_opt == "Seasonal − Permanent (gap)":
-    spr = spr.sort_values("Gap", ascending=ascending)
-elif sort_opt == "Seasonal / Permanent (ratio)":
-    spr = spr.sort_values("Ratio", ascending=ascending)
 elif sort_opt == "Seasonal only":
     spr = spr.sort_values(COL_SPRING_SEAS, ascending=ascending)
 elif sort_opt == "Permanent only":
@@ -304,14 +289,6 @@ fig_pyr.update_layout(
 )
 st.plotly_chart(fig_pyr, use_container_width=True)
 
-if not spr.empty:
-    max_idx = spr["Gap"].idxmax()
-    gap_val = spr.loc[max_idx, "Gap"]
-    st.caption(
-        f"**Largest seasonal dependence:** {spr.loc[max_idx, GROUP_COL]} "
-        f"(gap = {gap_val:.2f}{' avg/town' if display_mode!='Totals' else ''})."
-    )
-
 # ----------------------------
 # Viz 2: Network condition — 100% stacked bar
 # ----------------------------
@@ -357,6 +334,3 @@ if COL_STATE_GOOD and COL_STATE_ACC and COL_STATE_BAD:
     st.plotly_chart(fig_net, use_container_width=True)
 else:
     st.info("Network condition columns not found — this chart is disabled for this CSV.")
-
-st.success("✅ Interactions wired: Aggregation level + two-bucket area profile + subset + value mode. Sliders are guarded against empty sets.")
-

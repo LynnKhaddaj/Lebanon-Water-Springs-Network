@@ -71,7 +71,6 @@ DISTRICT_ALIASES = {
     "Jbeil": "Byblos",
     "Saida": "Sidon",
     "Sour": "Tyre",
-    "Chouf": "Chouf",  # keep as-is, but present to remind
 }
 df["DistrictName"] = df["DistrictName"].replace(DISTRICT_ALIASES)
 
@@ -98,25 +97,24 @@ for c in [COL_SPRING_PERM, COL_SPRING_SEAS, COL_STATE_GOOD, COL_STATE_ACC, COL_S
         df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0)
 
 # ----------------------------
-# Two-bucket tags (your rules)
+# Two-bucket tags (UPDATED rules)
 # ----------------------------
 # Governorates:
-# Urban: Mount Lebanon (and Beirut if present)
-# Rural/Agri: Bekaa, Baalbek-Hermel, Nabatieh, Akkar
-# Mixed (North, South) -> assign to Rural/Agri (dominant overall)
+# Urban: Mount Lebanon, North Lebanon (and Beirut if present)
+# Rural/Agri: Bekaa, Baalbek-Hermel, Nabatieh, Akkar, South Lebanon
 GOV_BUCKET = {
     "Beirut": "Urban",
     "Mount Lebanon": "Urban",
+    "North Lebanon": "Urban",       # <- UPDATED per your request
     "Bekaa": "Rural/Agri",
     "Baalbek-Hermel": "Rural/Agri",
     "Nabatieh": "Rural/Agri",
     "El Nabatieh": "Rural/Agri",
     "Akkar": "Rural/Agri",
-    "North Lebanon": "Rural/Agri",   # mixed -> forced to Rural/Agri
-    "South Lebanon": "Rural/Agri",   # mixed -> forced to Rural/Agri
+    "South Lebanon": "Rural/Agri",
 }
 
-# Districts:
+# Districts (two buckets)
 URBAN_DISTRICTS = {
     "Tripoli", "Sidon", "Tyre", "Sour", "Baabda", "Metn", "Aley",
     "Keserwan", "Chouf", "Jbeil", "Byblos"
@@ -132,9 +130,10 @@ def area_bucket(row, level):
     d = str(row.get("DistrictName", "")).strip()
 
     if level == "Governorate":
-        return GOV_BUCKET.get(g, "Rural/Agri")  # default to Rural/Agri if unknown
+        # default to Rural/Agri if unknown
+        return GOV_BUCKET.get(g, "Rural/Agri")
 
-    # District level: exact set match; otherwise inherit governorate bucket
+    # District level: explicit sets; else inherit governorate bucket
     if d in URBAN_DISTRICTS:
         return "Urban"
     if d in RURAL_DISTRICTS:
@@ -195,7 +194,6 @@ display_mode = st.sidebar.radio(
 # SAFE slider helper
 # ----------------------------
 def safe_topn_slider(label, n_items, key=None):
-    """Return a safe top-N value; avoids Streamlit slider crash when n_items == 0."""
     n = int(n_items)
     if n <= 0:
         st.warning("Nothing to rank for the current filter.")

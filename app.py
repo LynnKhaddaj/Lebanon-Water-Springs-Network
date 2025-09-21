@@ -121,14 +121,12 @@ GOV_BUCKET = {
 
 URBAN_DISTRICTS = {
     "Tripoli", "Sidon", "Tyre", "Baabda", "Metn", "Aley",
-    "Keserwan", "Chouf", "Byblos", "Jbeil",  # Jbeil alias handled above
-    # If you want Minieh - Danniyeh as Urban instead, move it into this set:
-    # TARGET_MINIEH,
+    "Keserwan", "Chouf","Zahle", "Byblos","Matn", "Jbeil",
 }
 RURAL_DISTRICTS = {
-    "Baalbek", "Hermel", "Zahle", "West Bekaa", "Rachaya",
+    "Baalbek", "Hermel", "West Bekaa", "Rachaya",
     "Bint Jbeil", "Marjeyoun", "Hasbaya", "Jezzine",
-    TARGET_MINIEH,  # currently classified Rural/Agri
+    TARGET_MINIEH,
     "Bcharre", "Koura", "Batroun", "Zgharta", "Akkar"
 }
 
@@ -298,20 +296,18 @@ st.plotly_chart(fig_pyr, use_container_width=True)
 with st.expander("💡 Insights (Governorates vs District)"):
     st.markdown("""
 **Governorates insights**
-- **Akkar** shows the **strongest seasonal reliance** (~**539 seasonal** vs **269 permanent**) → highest risk of dry-season shortfalls; storage and summer operations are critical.
+- **Akkar** shows the **strongest seasonal reliance** (~**539 seasonal** vs **269 permanent**) → highest risk of dry-season shortfalls (storage and summer operations are critical).
 - **Mount Lebanon** is also **seasonal-heavy** (~**448** vs **257**) despite its size; plan for seasonal smoothing near urban demand.
 - **Nabatieh** is extremely skewed (**~383 seasonal** vs **~17 permanent**) → very vulnerable in late summer.
 - **Bekaa** is mid-range but still **seasonal > permanent** (~**150** vs **98**); good candidate for lifting the permanent base.
-- **Baalbek-Hermel** is **balanced** (~**94** vs **93**) — better year-round stability than its neighbors.
-- **North Lebanon** contributes **very little** overall (~**16 seasonal**, **25 permanent**) — totals are low regardless of type.
+- **Baalbek-Hermel** is **balanced** (~**94** vs **93**), better year-round stability than its neighbors.
+- **North Lebanon** contributes **very little** overall (~**16 seasonal**, **25 permanent**), totals are low regardless of type.
 
 **District insights**
-- **Baabda** is **seasonal-dominant** (≈ **318 seasonal** vs **150 permanent**) — large urban demand leaning on wet-season recharge. Add **storage/transfer** to smooth summer gaps.
-- **Aley** is **high on both** (≈ **263 permanent**, **226 seasonal**) — big volumes overall; pair **source protection** with **pressure-managed** delivery.
-- **Keserwan** and **Matn** look **more balanced** (e.g., **Keserwan ≈ 193 perm / 93 seas**, **Matn ≈ 105 / 73**) — steadier year-round; focus on **quality and losses**.
-- **Bsharri** leans **permanent** (≈ **60 perm / 41 seas**) — valuable **dry-season buffer** from high-elevation baseflow.
-- **Miniyeh-Danniyeh** sits mid-pack (≈ **63 perm / 58 seas**) — moderate totals with mild seasonal tilt.
-- **Byblos (Jbeil), Sidon, Tyre** are **low-total** districts — won’t shift national supply but can be **local bottlenecks**; target **town-level gaps**.
+- **Baabda** is **seasonal-dominant** (≈ **318 seasonal** vs **150 permanent**), large urban demand leaning on wet-season recharge. Add **storage/transfer** to smooth summer gaps.
+- **Aley** is **high on both** (≈ **263 permanent**, **226 seasonal**), big volumes overall (pair **source protection** with **pressure-managed** delivery).
+- **Bsharri** and **Zahle** leans **permanent** (≈ **60 perm / 41 seas** and **49 perm / 31 seas**) — valuable **dry-season buffer** from high-elevation baseflow.
+- **Miniyeh-Danniyeh**, **Marjeyoun** and **Hasbaya** sits mid-pack (≈ **63 perm / 58 seas**, **39 perm / 31 seas** and **33 perm / 35 seas**), somewhat balanced springs.
 
 **What to act on:** 
 Prioritize storage/transfer in **Akkar** and **Nabatieh**, strengthen permanent sources in **Mount Lebanon** and **Bekaa**, and keep **Baalbek-Hermel** reliable with protection of existing permanent flows.
@@ -330,7 +326,7 @@ with st.expander("🏙️ Urban vs 🌾 Agriculture/Rural"):
 - **Baalbek-Hermel** is **balanced** (seasonal ≈ permanent) → more stable year-round on sources, but see network condition chart for delivery issues.
 - **South** tends to be **moderate** on volumes with seasonal lean; plan **targeted storage** near demand centers.
 
-**Bottom line:** Urban demand does **not** guarantee permanent stability; several **urban/peri-urban districts** are still **seasonal-dependent**. Rural belts carry the **largest seasonal swings**, so **storage + operational smoothing** matter most there.
+**Bottom line:** Urban demand does **not** guarantee permanent stability; several **urban/peri-urban districts** are still **seasonal-dependent**. Rural belts carry the **largest seasonal swings**, so **storage + operational smoothing** matter most there as it will ultimately affect the agricultral seasons and affect crop harvest.
 """)
 
 
@@ -417,6 +413,7 @@ with st.expander("🏙️ Urban vs 🌾 Agriculture/Rural"):
 
 **Bottom line:** Rural belts need **hard upgrades** where **Bad%** clusters (especially **Baalbek-Hermel**), while **urban Mount Lebanon** benefits most from **operational optimization** (pressure/leaks) before major capex. Use this split to justify **different playbooks** by area type.
 """)
+
 
 
 

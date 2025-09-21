@@ -71,7 +71,7 @@ DISTRICT_ALIASES = {
     "Miniyeh – Danniyeh": TARGET_MINIEH,  # en dash
     "Miniyeh—Danniyeh": TARGET_MINIEH,    # em dash
     "Minieh-Danniyeh": TARGET_MINIEH,
-    "Minieh – Danniyeh": TARGET_MINIEH,
+    "MiniyehÃ¢Â€Â“Danniyeh_District": TARGET_MINIEH,
     "Minieh—Danniyeh": TARGET_MINIEH,
     "ZahlÃ©": "Zahle", "Zahlé": "Zahle",
     "Bint Jbail": "Bint Jbeil",
@@ -341,3 +341,4 @@ if COL_STATE_GOOD and COL_STATE_ACC and COL_STATE_BAD:
     st.plotly_chart(fig_net, use_container_width=True)
 else:
     st.info("Network condition columns not found — this chart is disabled for this CSV.")
+

@@ -318,7 +318,7 @@ Prioritize storage/transfer in **Akkar** and **Nabatieh**, strengthen permanent 
 
 """)
     
-with st.expander("🏙️ Urban vs 🌾 Agriculture/Rural — What this means here"):
+with st.expander("🏙️ Urban vs 🌾 Agriculture/Rural"):
     st.markdown("""
 **Urban (Mount Lebanon, North Lebanon)**
 - **Mount Lebanon** has **big seasonal bars** (seasonal >> permanent) → even the urban core rides on **wet-season recharge**. That means **storage/transfer** are essential for summer.
@@ -403,7 +403,7 @@ Rehab **Baalbek-Hermel** first; target hotspots in **Bekaa**; optimize **Mount L
 """)
 
 
-with st.expander("🏙️ Urban vs 🌾 Agriculture/Rural — What this means here"):
+with st.expander("🏙️ Urban vs 🌾 Agriculture/Rural"):
     st.markdown("""
 **Urban (Mount Lebanon, North Lebanon)**
 - **North Lebanon** tends to look **healthier** (higher **Good%**, lower **Bad%**).
@@ -417,6 +417,7 @@ with st.expander("🏙️ Urban vs 🌾 Agriculture/Rural — What this means he
 
 **Bottom line:** Rural belts need **hard upgrades** where **Bad%** clusters (especially **Baalbek-Hermel**), while **urban Mount Lebanon** benefits most from **operational optimization** (pressure/leaks) before major capex. Use this split to justify **different playbooks** by area type.
 """)
+
 
 
 

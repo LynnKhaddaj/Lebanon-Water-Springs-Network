@@ -45,8 +45,10 @@ if "GovernorateName" not in df.columns or "DistrictName" not in df.columns:
     if "refArea" in df.columns:
         area_parsed = df["refArea"].apply(parse_ref_area)
         df["AreaName"], df["AreaType"] = zip(*area_parsed)
-        df["GovernorateName"] = df.get("GovernorateName", np.nan)
-        df["DistrictName"] = df.get("DistrictName", np.nan)
+        if "GovernorateName" not in df.columns:
+            df["GovernorateName"] = np.nan
+        if "DistrictName" not in df.columns:
+            df["DistrictName"] = np.nan
         df.loc[df["AreaType"] == "Governorate", "GovernorateName"] = df.loc[df["AreaType"] == "Governorate", "AreaName"]
         df.loc[df["AreaType"] == "District", "DistrictName"] = df.loc[df["AreaType"] == "District", "AreaName"]
     else:
@@ -55,13 +57,23 @@ if "GovernorateName" not in df.columns or "DistrictName" not in df.columns:
 
 HAS_TOWN = "Town" in df.columns
 if HAS_TOWN:
-    df["Town"] = (
-        df["Town"].astype(str).str.strip().str.replace(r"\s+", " ", regex=True)
-    )
+    df["Town"] = df["Town"].astype(str).str.strip().str.replace(r"\s+", " ", regex=True)
 
 # Normalize a few governorate spellings
 gov_std = {"North": "North Lebanon", "South": "South Lebanon", "Beqaa": "Bekaa"}
 df["GovernorateName"] = df["GovernorateName"].replace(gov_std)
+
+# District aliases likely to appear
+DISTRICT_ALIASES = {
+    "MiniyehaDanniyeh": "Miniyeh-Danniyeh",
+    "ZahlÃ©": "Zahle", "Zahlé": "Zahle",
+    "Bint Jbail": "Bint Jbeil",
+    "Jbeil": "Byblos",
+    "Saida": "Sidon",
+    "Sour": "Tyre",
+    "Chouf": "Chouf",  # keep as-is, but present to remind
+}
+df["DistrictName"] = df["DistrictName"].replace(DISTRICT_ALIASES)
 
 def first_present(frame: pd.DataFrame, *cands):
     for c in cands:
@@ -70,12 +82,8 @@ def first_present(frame: pd.DataFrame, *cands):
     return None
 
 # Required: springs
-COL_SPRING_PERM = first_present(
-    df, "Total number of permanent water springs", "Permanent springs", "Permanent"
-)
-COL_SPRING_SEAS = first_present(
-    df, "Total number of seasonal water springs", "Seasonal springs", "Seasonal"
-)
+COL_SPRING_PERM = first_present(df, "Total number of permanent water springs", "Permanent springs", "Permanent")
+COL_SPRING_SEAS = first_present(df, "Total number of seasonal water springs",   "Seasonal springs",   "Seasonal")
 if not COL_SPRING_PERM or not COL_SPRING_SEAS:
     st.error("Missing spring columns (permanent/seasonal).")
     st.stop()
@@ -90,92 +98,92 @@ for c in [COL_SPRING_PERM, COL_SPRING_SEAS, COL_STATE_GOOD, COL_STATE_ACC, COL_S
         df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0)
 
 # ----------------------------
-# Sidebar — aggregation & external area profile
+# Two-bucket tags (your rules)
+# ----------------------------
+# Governorates:
+# Urban: Mount Lebanon (and Beirut if present)
+# Rural/Agri: Bekaa, Baalbek-Hermel, Nabatieh, Akkar
+# Mixed (North, South) -> assign to Rural/Agri (dominant overall)
+GOV_BUCKET = {
+    "Beirut": "Urban",
+    "Mount Lebanon": "Urban",
+    "Bekaa": "Rural/Agri",
+    "Baalbek-Hermel": "Rural/Agri",
+    "Nabatieh": "Rural/Agri",
+    "El Nabatieh": "Rural/Agri",
+    "Akkar": "Rural/Agri",
+    "North Lebanon": "Rural/Agri",   # mixed -> forced to Rural/Agri
+    "South Lebanon": "Rural/Agri",   # mixed -> forced to Rural/Agri
+}
+
+# Districts:
+URBAN_DISTRICTS = {
+    "Tripoli", "Sidon", "Tyre", "Sour", "Baabda", "Metn", "Aley",
+    "Keserwan", "Chouf", "Jbeil", "Byblos"
+}
+RURAL_DISTRICTS = {
+    "Baalbek", "Hermel", "Zahle", "West Bekaa", "Rachaya",
+    "Bint Jbeil", "Marjeyoun", "Hasbaya", "Jezzine",
+    "Miniyeh-Danniyeh", "Bcharre", "Koura", "Batroun", "Zgharta", "Akkar"
+}
+
+def area_bucket(row, level):
+    g = str(row.get("GovernorateName", "")).strip()
+    d = str(row.get("DistrictName", "")).strip()
+
+    if level == "Governorate":
+        return GOV_BUCKET.get(g, "Rural/Agri")  # default to Rural/Agri if unknown
+
+    # District level: exact set match; otherwise inherit governorate bucket
+    if d in URBAN_DISTRICTS:
+        return "Urban"
+    if d in RURAL_DISTRICTS:
+        return "Rural/Agri"
+    return GOV_BUCKET.get(g, "Rural/Agri")
+
+# ----------------------------
+# Sidebar — aggregation & area filter (two buckets)
 # ----------------------------
 st.sidebar.header("Filters")
 
 group_level = st.sidebar.radio("Aggregate by", ["Governorate", "District"], index=0)
 GROUP_COL = "GovernorateName" if group_level == "Governorate" else "DistrictName"
 
-st.sidebar.markdown("**Area profile (external)**")
 area_choice = st.sidebar.radio(
-    "Pick one",
-    ["All areas", "Urban only", "Agriculture/Rural only", "Mixed only"],
+    "Area profile (external)",
+    ["All areas", "Urban only", "Agriculture/Rural only"],
     index=0
 )
 
-# External mapping (can be expanded; districts inherit governorate tag when unknown)
-GOV_TAG = {
-    "Beirut": "Urban",
-    "Mount Lebanon": "Urban",
-    "North Lebanon": "Mixed",
-    "South Lebanon": "Mixed",
-    "Akkar": "Mixed",
-    "Bekaa": "Agriculture",
-    "Baalbek-Hermel": "Agriculture",
-    "Nabatieh": "Agriculture",
-}
-# Optional district overrides (examples); everything else inherits governorate tag
-DIST_TAG = {
-    "Tripoli": "Urban",
-    "Zgharta": "Mixed",
-    "Zahle": "Agriculture",
-    "Baalbek": "Agriculture",
-    "Tyre": "Mixed",
-    "Sidon": "Mixed",
-}
+# Tag each row with bucket for current level
+df["AreaBucket"] = df.apply(lambda r: area_bucket(r, group_level), axis=1)
 
-# Tag each row
-def area_tag_from_row(row):
-    gname = str(row.get("GovernorateName", "")).strip()
-    dname = str(row.get("DistrictName", "")).strip()
-
-    # Governorate tag defaults to Mixed if unknown
-    gtag = GOV_TAG.get(gname, "Mixed")
-
-    if GROUP_COL == "GovernorateName":
-        return gtag
-
-    # District-level: use explicit district tag if present; otherwise inherit governorate tag
-    if dname in DIST_TAG:
-        return DIST_TAG[dname]
-    return gtag
-
-df["AreaTagExternal"] = df.apply(area_tag_from_row, axis=1)
-
-# ----------------------------
-# Build list of selectable areas (with guards)
-# ----------------------------
-# Apply external area profile first
+# Apply area filter
 data0 = df.copy()
 if area_choice != "All areas":
-    keep = {"Urban only": "Urban", "Agriculture/Rural only": "Agriculture", "Mixed only": "Mixed"}[area_choice]
-    data0 = data0[data0["AreaTagExternal"] == keep]
+    keep = "Urban" if area_choice == "Urban only" else "Rural/Agri"
+    data0 = data0[data0["AreaBucket"] == keep]
 
-areas_all = sorted(data0[GROUP_COL].dropna().unique().tolist())
-
-# HARD GUARD: no areas => friendly message and stop (prevents slider crash)
+# Build choices safely
+areas_all = sorted([a for a in data0[GROUP_COL].dropna().unique().tolist() if a])
 if len(areas_all) == 0:
     st.warning(
-        f"No {group_level.lower()}s match **{area_choice}** in this dataset. "
+        f"No {group_level.lower()}s match **{area_choice}**. "
         "Try a different area profile or switch aggregation level."
     )
     st.stop()
 
 pick_areas = st.sidebar.multiselect(f"{group_level}s", areas_all, default=areas_all)
-
-# If user deselects everything, guard again
 if len(pick_areas) == 0:
     st.warning("No areas selected. Pick at least one.")
     st.stop()
 
-# This subset is the base for all charts
+# Base subset for charts
 data = data0[data0[GROUP_COL].isin(pick_areas)].copy()
 if data.empty:
     st.warning("No rows after filtering. Adjust filters to see data.")
     st.stop()
 
-# Value scale
 display_mode = st.sidebar.radio(
     "Springs scale",
     ["Totals", "Per-town average"],
@@ -184,7 +192,18 @@ display_mode = st.sidebar.radio(
 )
 
 # ----------------------------
-# Pyramid sorting controls (SAFE sliders)
+# SAFE slider helper
+# ----------------------------
+def safe_topn_slider(label, n_items, key=None):
+    """Return a safe top-N value; avoids Streamlit slider crash when n_items == 0."""
+    n = int(n_items)
+    if n <= 0:
+        st.warning("Nothing to rank for the current filter.")
+        st.stop()
+    return st.sidebar.slider(label, min_value=1, max_value=n, value=min(8, n), key=key)
+
+# ----------------------------
+# Pyramid controls (safe)
 # ----------------------------
 st.sidebar.markdown("---")
 st.sidebar.subheader("Pyramid sorting")
@@ -200,35 +219,16 @@ sort_opt = st.sidebar.selectbox(
     index=1,
 )
 ascending = st.sidebar.checkbox("Ascending order", value=False)
-
-n_max = len(pick_areas)
-top_n_pyr = st.sidebar.slider(
-    "Show top-N areas (after sort)",
-    min_value=1,
-    max_value=n_max,
-    value=min(8, n_max)
-)
+top_n_pyr = safe_topn_slider("Show top-N areas (after sort)", len(pick_areas), key="tn_pyr")
 
 # ----------------------------
-# Network sorting controls (SAFE sliders)
+# Network controls (safe)
 # ----------------------------
 st.sidebar.markdown("---")
 st.sidebar.subheader("Network sorting")
-net_sort_opt = st.sidebar.selectbox(
-    "Sort by",
-    ["Good %", "Bad %", "Acceptable %"],
-    index=0,
-)
+net_sort_opt = st.sidebar.selectbox("Sort by", ["Good %", "Bad %", "Acceptable %"], index=0)
 net_ascending = st.sidebar.checkbox("Ascending", value=False, key="net_asc")
-
-n_max_net = len(pick_areas)
-top_n_net = st.sidebar.slider(
-    "Show top-N areas",
-    min_value=1,
-    max_value=n_max_net,
-    value=min(8, n_max_net),
-    key="net_n"
-)
+top_n_net = safe_topn_slider("Show top-N areas", len(pick_areas), key="tn_net")
 show_labels_net = st.sidebar.checkbox("Show labels on bars", value=True)
 
 # ----------------------------
@@ -236,8 +236,7 @@ show_labels_net = st.sidebar.checkbox("Show labels on bars", value=True)
 # ----------------------------
 st.subheader(f"Permanent vs Seasonal Springs by {group_level}")
 
-agg_cols = [COL_SPRING_PERM, COL_SPRING_SEAS]
-spr = data.groupby(GROUP_COL, as_index=False)[agg_cols].sum()
+spr = data.groupby(GROUP_COL, as_index=False)[[COL_SPRING_PERM, COL_SPRING_SEAS]].sum()
 
 if display_mode == "Per-town average" and HAS_TOWN:
     town_counts = data.groupby(GROUP_COL, as_index=False)["Town"].nunique().rename(columns={"Town":"Towns"})
@@ -249,7 +248,6 @@ if display_mode == "Per-town average" and HAS_TOWN:
 else:
     x_title = "Number of springs"
 
-# Sorting metric
 spr["Total"] = spr[COL_SPRING_PERM] + spr[COL_SPRING_SEAS]
 spr["Gap"]   = spr[COL_SPRING_SEAS] - spr[COL_SPRING_PERM]
 spr["Ratio"] = np.where(spr[COL_SPRING_PERM] > 0, spr[COL_SPRING_SEAS] / spr[COL_SPRING_PERM], np.nan)
@@ -308,7 +306,6 @@ fig_pyr.update_layout(
 )
 st.plotly_chart(fig_pyr, use_container_width=True)
 
-# One-sentence takeaway
 if not spr.empty:
     max_idx = spr["Gap"].idxmax()
     gap_val = spr.loc[max_idx, "Gap"]
@@ -346,11 +343,7 @@ if COL_STATE_GOOD and COL_STATE_ACC and COL_STATE_BAD:
     fig_net = px.bar(
         net_long, x="Share", y=GROUP_COL,
         color="Condition", orientation="h",
-        color_discrete_map={
-            "Good %": "#2ECC71",       # green
-            "Acceptable %": "#F1C40F", # yellow
-            "Bad %": "#E74C3C",        # red
-        },
+        color_discrete_map={"Good %": "#2ECC71", "Acceptable %": "#F1C40F", "Bad %": "#E74C3C"},
         category_orders={"Condition": ["Good %", "Acceptable %", "Bad %"]},
         text="Share" if show_labels_net else None
     )
@@ -364,11 +357,8 @@ if COL_STATE_GOOD and COL_STATE_ACC and COL_STATE_BAD:
     if show_labels_net:
         fig_net.update_traces(texttemplate="%{text:.0f}%", textposition="outside", cliponaxis=False)
     st.plotly_chart(fig_net, use_container_width=True)
-
-    st.caption("Tip: Sort by **Good %** to see strongest performers, or by **Bad %** to surface where the network struggles.")
 else:
     st.info("Network condition columns not found — this chart is disabled for this CSV.")
 
-st.success("✅ Interactions wired: Aggregation level + Area profile + Governorate/District subset + Value mode, all changing the data in the charts.")
-
+st.success("✅ Interactions wired: Aggregation level + two-bucket area profile + subset + value mode. Sliders are guarded against empty sets.")
 

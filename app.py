@@ -11,7 +11,7 @@ import plotly.graph_objects as go
 # ----------------------------
 st.set_page_config(page_title="Lebanon Water — Springs & Network", layout="wide")
 st.title("Lebanon Water — Springs & Network")
-st.caption("Filter, sort, and rank governorates to explore seasonal dependence and network condition.")
+st.caption("Filter, aggregate, and rank areas to explore seasonal dependence and network condition.")
 
 # ----------------------------
 # Load data (no uploader)
@@ -92,14 +92,102 @@ for c in [COL_SPRING_PERM, COL_SPRING_SEAS, COL_STATE_GOOD, COL_STATE_ACC, COL_S
 # ----------------------------
 st.sidebar.header("Filters")
 
-govs_all = sorted(df["GovernorateName"].dropna().unique().tolist())
-pick_govs = st.sidebar.multiselect("Governorates", govs_all, default=govs_all)
+# (1) Aggregate by Governorate vs District
+group_level = st.sidebar.radio(
+    "Aggregate by",
+    ["Governorate", "District"],
+    index=0,
+    help="Changes the level at which data is aggregated for both charts."
+)
+if group_level == "District" and "DistrictName" not in df.columns:
+    st.sidebar.warning("No DistrictName column in this CSV — falling back to Governorate.")
+    group_level = "Governorate"
+GROUP_COL = "GovernorateName" if group_level == "Governorate" else "DistrictName"
 
+# (2) Area profile filter (external classification: Urban / Agriculture / Mixed)
+# Governorate tags
+GOV_TAG = {
+    # Urban-dense / city-like
+    "Beirut": "Urban",
+    "Mount Lebanon": "Urban",
+    "Keserwan-Jbeil": "Urban",  # if present in your admin layer
+
+    # Agriculture/Rural-dominant
+    "Bekaa": "Agriculture",
+    "Baalbek-El Hermel": "Agriculture",
+    "El Nabatieh": "Agriculture",
+    "Akkar": "Agriculture",
+
+    # Mixed
+    "North": "Mixed",
+    "South": "Mixed",
+}
+# District tags (practical starting point; adjust spellings to your data if needed)
+DIST_TAG = {
+    # Urban / city-like cores
+    "Tripoli": "Urban",
+    "Saida": "Urban",
+    "Sour": "Urban", "Tyre": "Urban",
+    "Baabda": "Urban",
+    "El Metn": "Urban", "Metn": "Urban",
+    "Aley": "Urban",
+    "Kesrouan": "Urban", "Keserwan": "Urban",
+    "Chouf": "Urban", "Shouf": "Urban",
+    "Jbail": "Urban", "Byblos": "Urban",
+
+    # Agriculture / Rural
+    "Akkar": "Agriculture",
+    "Baalbek": "Agriculture",
+    "Hermel": "Agriculture",
+    "Zahleh": "Agriculture", "Zahle": "Agriculture",
+    "West Bekaa": "Agriculture",
+    "Rachaya": "Agriculture",
+    "Bint Jbeil": "Agriculture",
+    "Marjaayoun": "Agriculture", "Marjeyoun": "Agriculture",
+    "Hasbaya": "Agriculture",
+    "Jezzine": "Agriculture",
+    "Minieh-Dinnieh": "Agriculture", "Miniyeh-Danniyeh": "Agriculture",
+    "Bcharre": "Agriculture",
+    "Koura": "Agriculture",
+    "Batroun": "Agriculture",
+    "Zgharta": "Agriculture",
+}
+
+def area_tag_from_row(row):
+    if GROUP_COL == "GovernorateName":
+        return GOV_TAG.get(str(row["GovernorateName"]).strip(), "Mixed")
+    else:
+        return DIST_TAG.get(str(row["DistrictName"]).strip(), "Agriculture")
+
+df["AreaTagExternal"] = df.apply(area_tag_from_row, axis=1)
+
+area_choice = st.sidebar.radio(
+    "Area profile (external)",
+    ["All areas", "Urban only", "Agriculture/Rural only", "Mixed only"],
+    index=0,
+    help="Subsets rows before aggregation using an external Urban/Agriculture/Mixed mapping."
+)
+
+# Subset the data by area profile before listing choices
+data0 = df.copy()
+if area_choice != "All areas":
+    keep = {
+        "Urban only": "Urban",
+        "Agriculture/Rural only": "Agriculture",
+        "Mixed only": "Mixed",
+    }[area_choice]
+    data0 = data0[data0["AreaTagExternal"] == keep]
+
+# Area selector (based on filtered rows)
+areas_all = sorted(data0[GROUP_COL].dropna().unique().tolist())
+pick_areas = st.sidebar.multiselect(f"{group_level}s", areas_all, default=areas_all)
+
+# Springs scale (Totals vs per-town)
 display_mode = st.sidebar.radio(
     "Springs scale",
     ["Totals", "Per-town average"],
     index=0,
-    help="Per-town average divides by the number of unique towns in each governorate."
+    help="Per-town average divides by the number of unique towns per selected area."
 )
 
 st.sidebar.markdown("---")
@@ -116,7 +204,8 @@ sort_opt = st.sidebar.selectbox(
     index=1,
 )
 ascending = st.sidebar.checkbox("Ascending order", value=False)
-top_n_pyr = st.sidebar.slider("Show top-N governorates (after sort)", 1, len(pick_govs) if pick_govs else 1, min(8, len(pick_govs) if pick_govs else 1))
+max_n_now = max(1, len(areas_all))
+top_n_pyr = st.sidebar.slider("Show top-N areas (after sort)", 1, max_n_now, min(8, max_n_now))
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("Network sorting")
@@ -126,26 +215,27 @@ net_sort_opt = st.sidebar.selectbox(
     index=0,
 )
 net_ascending = st.sidebar.checkbox("Ascending", value=False, key="net_asc")
-top_n_net = st.sidebar.slider("Show top-N governorates", 1, len(pick_govs) if pick_govs else 1, min(8, len(pick_govs) if pick_govs else 1), key="net_n")
+top_n_net = st.sidebar.slider("Show top-N areas", 1, max_n_now, min(8, max_n_now), key="net_n")
 show_labels_net = st.sidebar.checkbox("Show labels on bars", value=True)
 
-data = df[df["GovernorateName"].isin(pick_govs)].copy()
+# Final filtered data by area selection
+data = data0[data0[GROUP_COL].isin(pick_areas)].copy()
 if data.empty:
-    st.warning("No rows after filtering. Select at least one governorate.")
+    st.warning("No rows after the chosen filters. Select different filters/areas.")
     st.stop()
 
 # ----------------------------
-# Viz 1: Pyramid — Permanent vs Seasonal
+# Viz 1: Pyramid — Permanent vs Seasonal (by GROUP_COL)
 # ----------------------------
-st.subheader("Permanent vs Seasonal Springs by Governorate")
+st.subheader(f"Permanent vs Seasonal Springs by {group_level}")
 
 spr = (
-    data.groupby("GovernorateName", as_index=False)[[COL_SPRING_PERM, COL_SPRING_SEAS]].sum()
+    data.groupby(GROUP_COL, as_index=False)[[COL_SPRING_PERM, COL_SPRING_SEAS]].sum()
 )
 
 if display_mode == "Per-town average" and HAS_TOWN:
-    town_counts = data.groupby("GovernorateName", as_index=False)["Town"].nunique().rename(columns={"Town":"Towns"})
-    spr = spr.merge(town_counts, on="GovernorateName", how="left")
+    town_counts = data.groupby(GROUP_COL, as_index=False)["Town"].nunique().rename(columns={"Town":"Towns"})
+    spr = spr.merge(town_counts, on=GROUP_COL, how="left")
     spr["Towns"] = spr["Towns"].replace(0, np.nan)
     spr[COL_SPRING_PERM] = (spr[COL_SPRING_PERM] / spr["Towns"]).round(2)
     spr[COL_SPRING_SEAS] = (spr[COL_SPRING_SEAS] / spr["Towns"]).round(2)
@@ -169,8 +259,9 @@ elif sort_opt == "Seasonal only":
 elif sort_opt == "Permanent only":
     spr = spr.sort_values(COL_SPRING_PERM, ascending=ascending)
 
-spr = spr.tail(top_n_pyr)  # top-N after sort
-govs = spr["GovernorateName"].tolist()
+# top-N after sort
+spr = spr.tail(top_n_pyr)
+areas = spr[GROUP_COL].tolist()
 perm = spr[COL_SPRING_PERM].to_numpy()
 seas = spr[COL_SPRING_SEAS].to_numpy()
 
@@ -186,13 +277,13 @@ blue_medium = "#6BAED6"
 
 fig_pyr = go.Figure()
 fig_pyr.add_trace(go.Bar(
-    x=-perm, y=govs, orientation="h",
+    x=-perm, y=areas, orientation="h",
     name="Permanent (left)", marker_color=blue_dark,
     text=[f"{v:,.2f}" if display_mode!="Totals" else f"{int(v):,}" for v in perm],
     textposition="outside", cliponaxis=False
 ))
 fig_pyr.add_trace(go.Bar(
-    x=seas, y=govs, orientation="h",
+    x=seas, y=areas, orientation="h",
     name="Seasonal (right)", marker_color=blue_medium,
     text=[f"{v:,.2f}" if display_mode!="Totals" else f"{int(v):,}" for v in seas],
     textposition="outside", cliponaxis=False
@@ -205,7 +296,7 @@ fig_pyr.update_layout(
         tickmode="array", tickvals=tickvals, ticktext=ticktext,
         zeroline=True, zerolinewidth=2, zerolinecolor="rgba(0,0,0,0.35)"
     ),
-    yaxis=dict(title="Governorate"),
+    yaxis=dict(title=group_level),
     legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
     margin=dict(l=110, r=40, t=20, b=50)
 )
@@ -215,26 +306,25 @@ st.plotly_chart(fig_pyr, use_container_width=True)
 gap = spr["Gap"]
 max_idx = gap.idxmax()
 st.caption(
-    f"**Largest seasonal dependence:** {spr.loc[max_idx,'GovernorateName']} "
+    f"**Largest seasonal dependence:** {spr.loc[max_idx, GROUP_COL]} "
     f"(gap = {gap.loc[max_idx]:.2f}{' avg/town' if display_mode!='Totals' else ''})."
 )
 
 # ----------------------------
-# Viz 2: Network condition — 100% stacked bar
+# Viz 2: Network condition — 100% stacked bar (by GROUP_COL)
 # ----------------------------
-st.subheader("State of Water Network by Governorate (100% Stacked)")
+st.subheader(f"State of Water Network by {group_level} (100% Stacked)")
 
 if COL_STATE_GOOD and COL_STATE_ACC and COL_STATE_BAD:
     net = (
-        data.groupby("GovernorateName", as_index=False)[[COL_STATE_GOOD, COL_STATE_ACC, COL_STATE_BAD]].sum()
+        data.groupby(GROUP_COL, as_index=False)[[COL_STATE_GOOD, COL_STATE_ACC, COL_STATE_BAD]].sum()
     )
 
-    # If the columns are raw counts, convert to %; if they already are %, this keeps them.
     vals = net[[COL_STATE_GOOD, COL_STATE_ACC, COL_STATE_BAD]].astype(float)
     row_sum = vals.sum(axis=1).replace(0, np.nan)
     net_pct = (vals.div(row_sum, axis=0) * 100).round(1)
 
-    net_pct["GovernorateName"] = net["GovernorateName"]
+    net_pct[GROUP_COL] = net[GROUP_COL]
 
     # Sorting for network chart
     sort_key_map = {
@@ -245,22 +335,17 @@ if COL_STATE_GOOD and COL_STATE_ACC and COL_STATE_BAD:
     net_pct = net_pct.sort_values(sort_key_map[net_sort_opt], ascending=net_ascending)
     net_pct = net_pct.tail(top_n_net)
 
-    # Rename to nice legends
-    nice = {
-        COL_STATE_GOOD: "Good %",
-        COL_STATE_ACC:  "Acceptable %",
-        COL_STATE_BAD:  "Bad %",
-    }
+    nice = {COL_STATE_GOOD: "Good %", COL_STATE_ACC: "Acceptable %", COL_STATE_BAD: "Bad %"}
     net_pct = net_pct.rename(columns=nice)
 
     net_long = net_pct.melt(
-        id_vars="GovernorateName",
+        id_vars=GROUP_COL,
         value_vars=["Good %", "Acceptable %", "Bad %"],
         var_name="Condition", value_name="Share"
     )
 
     fig_net = px.bar(
-        net_long, x="Share", y="GovernorateName",
+        net_long, x="Share", y=GROUP_COL,
         color="Condition", orientation="h",
         color_discrete_map={
             "Good %": "#2ECC71",       # green
@@ -273,7 +358,7 @@ if COL_STATE_GOOD and COL_STATE_ACC and COL_STATE_BAD:
     fig_net.update_layout(
         template="plotly_white",
         xaxis=dict(title="Share (%)", range=[0, 100]),
-        yaxis=dict(title="Governorate"),
+        yaxis=dict(title=group_level),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
         margin=dict(l=110, r=40, t=20, b=50)
     )
@@ -281,14 +366,11 @@ if COL_STATE_GOOD and COL_STATE_ACC and COL_STATE_BAD:
         fig_net.update_traces(texttemplate="%{text:.0f}%", textposition="outside", cliponaxis=False)
     st.plotly_chart(fig_net, use_container_width=True)
 
-    st.caption(
-        "Tip: Sort by **Good %** to see strongest performers, or by **Bad %** to surface where the network struggles."
-    )
+    st.caption("Tip: Sort by **Good %** to see strongest performers, or by **Bad %** to surface where the network struggles.")
 else:
     st.info("Network condition columns not found — this chart is disabled for this CSV.")
 
-
-st.success("✅ Interactions wired: Governorate filter + Value mode switch (changes the data/plots).")
+st.success("✅ Interactions wired: Group-by (Governorate/District) + Area profile (Urban/Agriculture/Mixed) + Springs scale (Totals/Per-town).")
 
 
 

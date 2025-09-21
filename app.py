@@ -66,9 +66,7 @@ df["GovernorateName"] = df["GovernorateName"].replace(gov_std)
 # ---- District aliases (force a single, clean name) ----
 TARGET_MINIEH = "Minieh - Danniyeh"
 DISTRICT_ALIASES = {
-    "MiniyehaDanniyeh": TARGET_MINIEH,
-    "Miniyeh-Danniyeh": TARGET_MINIEH,
-    "Miniyeh – Danniyeh": TARGET_MINIEH,  # en dash
+    "MiniyehâDanniyeh": TARGET_MINIEH,  # en dash
     "Miniyeh—Danniyeh": TARGET_MINIEH,    # em dash
     "Minieh-Danniyeh": TARGET_MINIEH,
     "MiniyehÃ¢Â€Â“Danniyeh": TARGET_MINIEH,
@@ -380,19 +378,19 @@ with st.expander("💡 Insights (Governorates vs District — Network condition)
     st.markdown("""
 **Governorates insights: Network condition**
 - **Baalbek-Hermel** is the **weakest**: **very low Good%** and **high Bad%** → first in the rehab queue.
-- **Mount Lebanon** is **Acceptable-heavy** with a notable **Bad%** — classic urban stress; convert **Yellow→Green** via pressure management and leak reduction (DMAs/PRVs).
-- **Bekaa** is **mixed** — decent **Good%** but a **meaningful Bad%**, pointing to uneven performance across towns.
+- **Mount Lebanon** is **Acceptable-heavy** with a notable **Bad%** → classic urban stress; convert **Yellow→Green** via pressure management and leak reduction (DMAs/PRVs).
+- **Bekaa** is **mixed**, it has decent **Good%** but a **meaningful Bad%** pointing to uneven performance across towns.
 - **North Lebanon** tends to look **healthier** (higher **Good%**, lower **Bad%**) than **Mount Lebanon**.
 - **South Lebanon** generally holds a **balanced** profile with **lower Bad%** than the eastern belt.
 
 **District insights: Network condition**
-  - **Baabda** is the **best performer** (higher **Good%**, lower **Bad%**) — protect with **preventive O&M**.
-  - **Byblos (Jbeil)** is the **urban outlier** with **high Bad%**; **Tyre** and **Sidon** also show **elevated Bad%** → prioritize **leak detection**, **pressure zoning (PRVs/DMAs)**, and targeted renewals.
-  - **Aley / Keserwan** are **Acceptable-heavy** — quick wins by converting **Yellow→Green** via **loss reduction** and **pressure management**.
-  - **Zgharta** and **Western Bekaa** are **bright spots** (low **Bad%**, solid **Good%**) — keep them green with **condition-based maintenance**.
-  - **Bint Jbeil**, **Zahle**, **Hermel** show **high Bad%**; **Hasbaya** is also elevated — these are the **first rehab queue** (mains renewal, valve rehab, metering, step-testing).
-  - **Matn** tends to be **Acceptable-heavy** — not failing, but room to lift service quality with **pressure/NRW** programs.
-- **Cross-signal:** Districts that are **seasonal-heavy** in the springs chart often show **more Yellow/Red** here — consistent with **dry-season strain** and **pressure swings**. Pair **network fixes** with **summer operations** and **storage**.
+  - **Zgharta** is the **best performer** (higher **Good%**, lower **Bad%**) → protect with **preventive O&M**.
+  - **Byblos (Jbeil)** is the **urban outlier** with one of the **high Bad%**; **Marjeyoun** and **Sidon** also show **elevated Bad%** → prioritize **leak detection** and targeted renewals.
+  - **Aley / Keserwan** are **Acceptable-heavy** → quick wins by converting **Yellow→Green** via **loss reduction** and **pressure management**.
+  - **Baabda** and **Western Bekaa** are **bright spots** (low **Bad%**, great **Good%**) → keep them green with **condition-based maintenance**.
+  - **Bint Jbeil**, **Zahle**, **Hermel** show **high Bad%**; **Hasbaya** is also elevated → these are the **first rehab queue** (mains renewal, valve rehab, metering, step-testing).
+  - **Matn** tends to be **Acceptable-heavy** → not failing, but room to lift service quality with **pressure/NRW** programs.
+- **Cross-signal:** Districts that are **seasonal-heavy** in the springs chart often show **more Yellow/Red** here → consistent with **dry-season strain** and **pressure swings**. Pair **network fixes** with **summer operations** and **storage**.
 
 **What to act on:** 
 Rehab **Baalbek-Hermel** first; target hotspots in **Bekaa**; optimize **Mount Lebanon** operations; keep **North/South** green with preventive maintenance.
@@ -403,16 +401,17 @@ with st.expander("🏙️ Urban vs 🌾 Agriculture/Rural"):
     st.markdown("""
 **Urban (Mount Lebanon, North Lebanon)**
 - **North Lebanon** tends to look **healthier** (higher **Good%**, lower **Bad%**).
-- **Mount Lebanon** is **Acceptable-heavy** with non-trivial **Bad%**—classic urban stress (aging assets, pressure/leak issues). **DMAs/PRVs, leak detection, and valve rehab** can move **Yellow → Green** fast.
+- **Mount Lebanon** is **Acceptable-heavy** with non-trivial **Bad%**, this is classic urban stress (aging assets, pressure/leak issues). **leak detection, and valve rehab** can move **Yellow → Green** fast.
 
 **Agriculture/Rural (Akkar, Bekaa, Baalbek-Hermel, Nabatieh, South)**
 - **Baalbek-Hermel** is the **rehab front-runner**: very low **Good%**, high **Bad%** → **first in the capex queue** (mains renewal, pressure zoning, metering).
 - **Bekaa** is **uneven** (decent Good% yet meaningful Bad%) → target **pockets** rather than one-size-fits-all.
 - **Akkar & Nabatieh** often show **elevated Bad%** in places—pair **network fixes** with the seasonal dependence seen in the springs chart.
-- **South** generally more **balanced**—protect with **preventive maintenance** so it doesn’t slide.
+- **South** generally more **balanced** → protect with **preventive maintenance** so it doesn’t slide.
 
 **Bottom line:** Rural belts need **hard upgrades** where **Bad%** clusters (especially **Baalbek-Hermel**), while **urban Mount Lebanon** benefits most from **operational optimization** (pressure/leaks) before major capex. Use this split to justify **different playbooks** by area type.
 """)
+
 
 
 

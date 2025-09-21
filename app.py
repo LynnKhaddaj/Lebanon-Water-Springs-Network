@@ -40,15 +40,17 @@ def parse_ref_area(s: str):
         return (name_raw.replace("_", " ").strip(), a_type)
     return (s.replace("_", " ").strip(), "Other")
 
-# If GovernorateName missing, derive from refArea
-if "GovernorateName" not in df.columns:
+# If GovernorateName/DistrictName missing, derive from refArea
+if "GovernorateName" not in df.columns or "DistrictName" not in df.columns:
     if "refArea" in df.columns:
         area_parsed = df["refArea"].apply(parse_ref_area)
         df["AreaName"], df["AreaType"] = zip(*area_parsed)
-        df["GovernorateName"] = np.where(df["AreaType"] == "Governorate", df["AreaName"], np.nan)
-        df["DistrictName"]    = np.where(df["AreaType"] == "District",     df["AreaName"], np.nan)
+        df["GovernorateName"] = df.get("GovernorateName", np.nan)
+        df["DistrictName"] = df.get("DistrictName", np.nan)
+        df.loc[df["AreaType"] == "Governorate", "GovernorateName"] = df.loc[df["AreaType"] == "Governorate", "AreaName"]
+        df.loc[df["AreaType"] == "District", "DistrictName"] = df.loc[df["AreaType"] == "District", "AreaName"]
     else:
-        st.error("Missing `GovernorateName` and `refArea` — cannot determine geography.")
+        st.error("Missing `GovernorateName`/`DistrictName` and `refArea` — cannot determine geography.")
         st.stop()
 
 HAS_TOWN = "Town" in df.columns
@@ -88,101 +90,92 @@ for c in [COL_SPRING_PERM, COL_SPRING_SEAS, COL_STATE_GOOD, COL_STATE_ACC, COL_S
         df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0)
 
 # ----------------------------
-# Sidebar interactions
+# Sidebar — aggregation & external area profile
 # ----------------------------
 st.sidebar.header("Filters")
 
-# (1) Aggregate by Governorate vs District
-group_level = st.sidebar.radio(
-    "Aggregate by",
-    ["Governorate", "District"],
-    index=0,
-    help="Changes the level at which data is aggregated for both charts."
-)
-if group_level == "District" and "DistrictName" not in df.columns:
-    st.sidebar.warning("No DistrictName column in this CSV — falling back to Governorate.")
-    group_level = "Governorate"
+group_level = st.sidebar.radio("Aggregate by", ["Governorate", "District"], index=0)
 GROUP_COL = "GovernorateName" if group_level == "Governorate" else "DistrictName"
 
-# (2) Area profile filter (external classification: Urban / Agriculture / Mixed)
-# Governorate tags
+st.sidebar.markdown("**Area profile (external)**")
+area_choice = st.sidebar.radio(
+    "Pick one",
+    ["All areas", "Urban only", "Agriculture/Rural only", "Mixed only"],
+    index=0
+)
+
+# External mapping (can be expanded; districts inherit governorate tag when unknown)
 GOV_TAG = {
-    # Urban-dense / city-like
     "Beirut": "Urban",
     "Mount Lebanon": "Urban",
-    "Keserwan-Jbeil": "Urban",  # if present in your admin layer
-
-    # Agriculture/Rural-dominant
+    "North Lebanon": "Mixed",
+    "South Lebanon": "Mixed",
+    "Akkar": "Mixed",
     "Bekaa": "Agriculture",
-    "Baalbek-El Hermel": "Agriculture",
-    "El Nabatieh": "Agriculture",
-    "Akkar": "Agriculture",
-
-    # Mixed
-    "North": "Mixed",
-    "South": "Mixed",
+    "Baalbek-Hermel": "Agriculture",
+    "Nabatieh": "Agriculture",
 }
-# District tags (practical starting point; adjust spellings to your data if needed)
+# Optional district overrides (examples); everything else inherits governorate tag
 DIST_TAG = {
-    # Urban / city-like cores
     "Tripoli": "Urban",
-    "Saida": "Urban",
-    "Sour": "Urban", "Tyre": "Urban",
-    "Baabda": "Urban",
-    "El Metn": "Urban", "Metn": "Urban",
-    "Aley": "Urban",
-    "Kesrouan": "Urban", "Keserwan": "Urban",
-    "Chouf": "Urban", "Shouf": "Urban",
-    "Jbail": "Urban", "Byblos": "Urban",
-
-    # Agriculture / Rural
-    "Akkar": "Agriculture",
+    "Zgharta": "Mixed",
+    "Zahle": "Agriculture",
     "Baalbek": "Agriculture",
-    "Hermel": "Agriculture",
-    "Zahleh": "Agriculture", "Zahle": "Agriculture",
-    "West Bekaa": "Agriculture",
-    "Rachaya": "Agriculture",
-    "Bint Jbeil": "Agriculture",
-    "Marjaayoun": "Agriculture", "Marjeyoun": "Agriculture",
-    "Hasbaya": "Agriculture",
-    "Jezzine": "Agriculture",
-    "Minieh-Dinnieh": "Agriculture", "Miniyeh-Danniyeh": "Agriculture",
-    "Bcharre": "Agriculture",
-    "Koura": "Agriculture",
-    "Batroun": "Agriculture",
-    "Zgharta": "Agriculture",
+    "Tyre": "Mixed",
+    "Sidon": "Mixed",
 }
 
+# Tag each row
 def area_tag_from_row(row):
+    gname = str(row.get("GovernorateName", "")).strip()
+    dname = str(row.get("DistrictName", "")).strip()
+
+    # Governorate tag defaults to Mixed if unknown
+    gtag = GOV_TAG.get(gname, "Mixed")
+
     if GROUP_COL == "GovernorateName":
-        return GOV_TAG.get(str(row["GovernorateName"]).strip(), "Mixed")
-    else:
-        return DIST_TAG.get(str(row["DistrictName"]).strip(), "Agriculture")
+        return gtag
+
+    # District-level: use explicit district tag if present; otherwise inherit governorate tag
+    if dname in DIST_TAG:
+        return DIST_TAG[dname]
+    return gtag
 
 df["AreaTagExternal"] = df.apply(area_tag_from_row, axis=1)
 
-area_choice = st.sidebar.radio(
-    "Area profile (external)",
-    ["All areas", "Urban only", "Agriculture/Rural only", "Mixed only"],
-    index=0,
-    help="Subsets rows before aggregation using an external Urban/Agriculture/Mixed mapping."
-)
-
-# Subset the data by area profile before listing choices
+# ----------------------------
+# Build list of selectable areas (with guards)
+# ----------------------------
+# Apply external area profile first
 data0 = df.copy()
 if area_choice != "All areas":
-    keep = {
-        "Urban only": "Urban",
-        "Agriculture/Rural only": "Agriculture",
-        "Mixed only": "Mixed",
-    }[area_choice]
+    keep = {"Urban only": "Urban", "Agriculture/Rural only": "Agriculture", "Mixed only": "Mixed"}[area_choice]
     data0 = data0[data0["AreaTagExternal"] == keep]
 
-# Area selector (based on filtered rows)
 areas_all = sorted(data0[GROUP_COL].dropna().unique().tolist())
+
+# HARD GUARD: no areas => friendly message and stop (prevents slider crash)
+if len(areas_all) == 0:
+    st.warning(
+        f"No {group_level.lower()}s match **{area_choice}** in this dataset. "
+        "Try a different area profile or switch aggregation level."
+    )
+    st.stop()
+
 pick_areas = st.sidebar.multiselect(f"{group_level}s", areas_all, default=areas_all)
 
-# Springs scale (Totals vs per-town)
+# If user deselects everything, guard again
+if len(pick_areas) == 0:
+    st.warning("No areas selected. Pick at least one.")
+    st.stop()
+
+# This subset is the base for all charts
+data = data0[data0[GROUP_COL].isin(pick_areas)].copy()
+if data.empty:
+    st.warning("No rows after filtering. Adjust filters to see data.")
+    st.stop()
+
+# Value scale
 display_mode = st.sidebar.radio(
     "Springs scale",
     ["Totals", "Per-town average"],
@@ -190,6 +183,9 @@ display_mode = st.sidebar.radio(
     help="Per-town average divides by the number of unique towns per selected area."
 )
 
+# ----------------------------
+# Pyramid sorting controls (SAFE sliders)
+# ----------------------------
 st.sidebar.markdown("---")
 st.sidebar.subheader("Pyramid sorting")
 sort_opt = st.sidebar.selectbox(
@@ -204,9 +200,18 @@ sort_opt = st.sidebar.selectbox(
     index=1,
 )
 ascending = st.sidebar.checkbox("Ascending order", value=False)
-max_n_now = max(1, len(areas_all))
-top_n_pyr = st.sidebar.slider("Show top-N areas (after sort)", 1, max_n_now, min(8, max_n_now))
 
+n_max = len(pick_areas)
+top_n_pyr = st.sidebar.slider(
+    "Show top-N areas (after sort)",
+    min_value=1,
+    max_value=n_max,
+    value=min(8, n_max)
+)
+
+# ----------------------------
+# Network sorting controls (SAFE sliders)
+# ----------------------------
 st.sidebar.markdown("---")
 st.sidebar.subheader("Network sorting")
 net_sort_opt = st.sidebar.selectbox(
@@ -215,23 +220,24 @@ net_sort_opt = st.sidebar.selectbox(
     index=0,
 )
 net_ascending = st.sidebar.checkbox("Ascending", value=False, key="net_asc")
-top_n_net = st.sidebar.slider("Show top-N areas", 1, max_n_now, min(8, max_n_now), key="net_n")
+
+n_max_net = len(pick_areas)
+top_n_net = st.sidebar.slider(
+    "Show top-N areas",
+    min_value=1,
+    max_value=n_max_net,
+    value=min(8, n_max_net),
+    key="net_n"
+)
 show_labels_net = st.sidebar.checkbox("Show labels on bars", value=True)
 
-# Final filtered data by area selection
-data = data0[data0[GROUP_COL].isin(pick_areas)].copy()
-if data.empty:
-    st.warning("No rows after the chosen filters. Select different filters/areas.")
-    st.stop()
-
 # ----------------------------
-# Viz 1: Pyramid — Permanent vs Seasonal (by GROUP_COL)
+# Viz 1: Pyramid — Permanent vs Seasonal
 # ----------------------------
 st.subheader(f"Permanent vs Seasonal Springs by {group_level}")
 
-spr = (
-    data.groupby(GROUP_COL, as_index=False)[[COL_SPRING_PERM, COL_SPRING_SEAS]].sum()
-)
+agg_cols = [COL_SPRING_PERM, COL_SPRING_SEAS]
+spr = data.groupby(GROUP_COL, as_index=False)[agg_cols].sum()
 
 if display_mode == "Per-town average" and HAS_TOWN:
     town_counts = data.groupby(GROUP_COL, as_index=False)["Town"].nunique().rename(columns={"Town":"Towns"})
@@ -259,8 +265,8 @@ elif sort_opt == "Seasonal only":
 elif sort_opt == "Permanent only":
     spr = spr.sort_values(COL_SPRING_PERM, ascending=ascending)
 
-# top-N after sort
 spr = spr.tail(top_n_pyr)
+
 areas = spr[GROUP_COL].tolist()
 perm = spr[COL_SPRING_PERM].to_numpy()
 seas = spr[COL_SPRING_SEAS].to_numpy()
@@ -303,35 +309,28 @@ fig_pyr.update_layout(
 st.plotly_chart(fig_pyr, use_container_width=True)
 
 # One-sentence takeaway
-gap = spr["Gap"]
-max_idx = gap.idxmax()
-st.caption(
-    f"**Largest seasonal dependence:** {spr.loc[max_idx, GROUP_COL]} "
-    f"(gap = {gap.loc[max_idx]:.2f}{' avg/town' if display_mode!='Totals' else ''})."
-)
+if not spr.empty:
+    max_idx = spr["Gap"].idxmax()
+    gap_val = spr.loc[max_idx, "Gap"]
+    st.caption(
+        f"**Largest seasonal dependence:** {spr.loc[max_idx, GROUP_COL]} "
+        f"(gap = {gap_val:.2f}{' avg/town' if display_mode!='Totals' else ''})."
+    )
 
 # ----------------------------
-# Viz 2: Network condition — 100% stacked bar (by GROUP_COL)
+# Viz 2: Network condition — 100% stacked bar
 # ----------------------------
 st.subheader(f"State of Water Network by {group_level} (100% Stacked)")
 
 if COL_STATE_GOOD and COL_STATE_ACC and COL_STATE_BAD:
-    net = (
-        data.groupby(GROUP_COL, as_index=False)[[COL_STATE_GOOD, COL_STATE_ACC, COL_STATE_BAD]].sum()
-    )
+    net = data.groupby(GROUP_COL, as_index=False)[[COL_STATE_GOOD, COL_STATE_ACC, COL_STATE_BAD]].sum()
 
     vals = net[[COL_STATE_GOOD, COL_STATE_ACC, COL_STATE_BAD]].astype(float)
     row_sum = vals.sum(axis=1).replace(0, np.nan)
     net_pct = (vals.div(row_sum, axis=0) * 100).round(1)
-
     net_pct[GROUP_COL] = net[GROUP_COL]
 
-    # Sorting for network chart
-    sort_key_map = {
-        "Good %": COL_STATE_GOOD,
-        "Bad %":  COL_STATE_BAD,
-        "Acceptable %": COL_STATE_ACC,
-    }
+    sort_key_map = {"Good %": COL_STATE_GOOD, "Bad %": COL_STATE_BAD, "Acceptable %": COL_STATE_ACC}
     net_pct = net_pct.sort_values(sort_key_map[net_sort_opt], ascending=net_ascending)
     net_pct = net_pct.tail(top_n_net)
 
@@ -370,7 +369,7 @@ if COL_STATE_GOOD and COL_STATE_ACC and COL_STATE_BAD:
 else:
     st.info("Network condition columns not found — this chart is disabled for this CSV.")
 
-st.success("✅ Interactions wired: Group-by (Governorate/District) + Area profile (Urban/Agriculture/Mixed) + Springs scale (Totals/Per-town).")
+st.success("✅ Interactions wired: Aggregation level + Area profile + Governorate/District subset + Value mode, all changing the data in the charts.")
 
 
 

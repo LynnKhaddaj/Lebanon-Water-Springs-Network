@@ -295,8 +295,9 @@ fig_pyr.update_layout(
     margin=dict(l=110, r=40, t=20, b=50)
 )
 st.plotly_chart(fig_pyr, use_container_width=True)
-with st.expander("💡 Insights (Governorates)"):
+with st.expander("💡 Insights (Governorates vs District)"):
     st.markdown("""
+**Governorates insights**
 - **Akkar** shows the **strongest seasonal reliance** (~**539 seasonal** vs **269 permanent**) → highest risk of dry-season shortfalls; storage and summer operations are critical.
 - **Mount Lebanon** is also **seasonal-heavy** (~**448** vs **257**) despite its size; plan for seasonal smoothing near urban demand.
 - **Nabatieh** is extremely skewed (**~383 seasonal** vs **~17 permanent**) → very vulnerable in late summer.
@@ -304,7 +305,32 @@ with st.expander("💡 Insights (Governorates)"):
 - **Baalbek-Hermel** is **balanced** (~**94** vs **93**) — better year-round stability than its neighbors.
 - **North Lebanon** contributes **very little** overall (~**16 seasonal**, **25 permanent**) — totals are low regardless of type.
 
-**What to act on:** Prioritize storage/transfer in **Akkar** and **Nabatieh**, strengthen permanent sources in **Mount Lebanon** and **Bekaa**, and keep **Baalbek-Hermel** reliable with protection of existing permanent flows.
+**District insights**
+- **Baabda** is **seasonal-dominant** (≈ **318 seasonal** vs **150 permanent**) — large urban demand leaning on wet-season recharge. Add **storage/transfer** to smooth summer gaps.
+- **Aley** is **high on both** (≈ **263 permanent**, **226 seasonal**) — big volumes overall; pair **source protection** with **pressure-managed** delivery.
+- **Keserwan** and **Matn** look **more balanced** (e.g., **Keserwan ≈ 193 perm / 93 seas**, **Matn ≈ 105 / 73**) — steadier year-round; focus on **quality and losses**.
+- **Bsharri** leans **permanent** (≈ **60 perm / 41 seas**) — valuable **dry-season buffer** from high-elevation baseflow.
+- **Miniyeh-Danniyeh** sits mid-pack (≈ **63 perm / 58 seas**) — moderate totals with mild seasonal tilt.
+- **Byblos (Jbeil), Sidon, Tyre** are **low-total** districts — won’t shift national supply but can be **local bottlenecks**; target **town-level gaps**.
+
+**What to act on:** 
+Prioritize storage/transfer in **Akkar** and **Nabatieh**, strengthen permanent sources in **Mount Lebanon** and **Bekaa**, and keep **Baalbek-Hermel** reliable with protection of existing permanent flows.
+
+""")
+    
+with st.expander("🏙️ Urban vs 🌾 Agriculture/Rural — What this means here"):
+    st.markdown("""
+**Urban (Mount Lebanon, North Lebanon)**
+- **Mount Lebanon** has **big seasonal bars** (seasonal >> permanent) → even the urban core rides on **wet-season recharge**. That means **storage/transfer** are essential for summer.
+- **North Lebanon** has **small totals** overall → fewer mapped springs; plan for **diversification** (interconnections/groundwater where safe), not just relying on local springs.
+
+**Agriculture/Rural (Akkar, Bekaa, Baalbek-Hermel, Nabatieh, South)**
+- **Akkar & Nabatieh** are **seasonal-heavy hotspots** → highest exposure to **dry-season shortfalls**; prioritize **tanks/reservoirs** and **summer operations**.
+- **Bekaa** is mid-range but still **seasonal > permanent** → lift the **permanent base** (spring protection, wellfield rehab).
+- **Baalbek-Hermel** is **balanced** (seasonal ≈ permanent) → more stable year-round on sources, but see network condition chart for delivery issues.
+- **South** tends to be **moderate** on volumes with seasonal lean; plan **targeted storage** near demand centers.
+
+**Bottom line:** Urban demand does **not** guarantee permanent stability; several **urban/peri-urban districts** are still **seasonal-dependent**. Rural belts carry the **largest seasonal swings**, so **storage + operational smoothing** matter most there.
 """)
 
 
@@ -354,16 +380,45 @@ if COL_STATE_GOOD and COL_STATE_ACC and COL_STATE_BAD:
 else:
     st.info("Network condition columns not found — this chart is disabled for this CSV.")
 
-with st.expander("💡 Insights (Governorates — Network condition)"):
+with st.expander("💡 Insights (Governorates vs District — Network condition)"):
     st.markdown("""
+**Governorates insights: Network condition**
 - **Baalbek-Hermel** is the **weakest**: **very low Good%** and **high Bad%** → first in the rehab queue.
 - **Mount Lebanon** is **Acceptable-heavy** with a notable **Bad%** — classic urban stress; convert **Yellow→Green** via pressure management and leak reduction (DMAs/PRVs).
 - **Bekaa** is **mixed** — decent **Good%** but a **meaningful Bad%**, pointing to uneven performance across towns.
 - **North Lebanon** tends to look **healthier** (higher **Good%**, lower **Bad%**) than **Mount Lebanon**.
 - **South Lebanon** generally holds a **balanced** profile with **lower Bad%** than the eastern belt.
 
-**What to act on:** Rehab **Baalbek-Hermel** first; target hotspots in **Bekaa**; optimize **Mount Lebanon** operations; keep **North/South** green with preventive maintenance.
+**District insights: Network condition**
+  - **Baabda** is the **best performer** (higher **Good%**, lower **Bad%**) — protect with **preventive O&M**.
+  - **Byblos (Jbeil)** is the **urban outlier** with **high Bad%**; **Tyre** and **Sidon** also show **elevated Bad%** → prioritize **leak detection**, **pressure zoning (PRVs/DMAs)**, and targeted renewals.
+  - **Aley / Keserwan** are **Acceptable-heavy** — quick wins by converting **Yellow→Green** via **loss reduction** and **pressure management**.
+  - **Zgharta** and **Western Bekaa** are **bright spots** (low **Bad%**, solid **Good%**) — keep them green with **condition-based maintenance**.
+  - **Bint Jbeil**, **Zahle**, **Hermel** show **high Bad%**; **Hasbaya** is also elevated — these are the **first rehab queue** (mains renewal, valve rehab, metering, step-testing).
+  - **Matn** tends to be **Acceptable-heavy** — not failing, but room to lift service quality with **pressure/NRW** programs.
+- **Cross-signal:** Districts that are **seasonal-heavy** in the springs chart often show **more Yellow/Red** here — consistent with **dry-season strain** and **pressure swings**. Pair **network fixes** with **summer operations** and **storage**.
+
+**What to act on:** 
+Rehab **Baalbek-Hermel** first; target hotspots in **Bekaa**; optimize **Mount Lebanon** operations; keep **North/South** green with preventive maintenance.
 """)
+
+
+with st.expander("🏙️ Urban vs 🌾 Agriculture/Rural — What this means here"):
+    st.markdown("""
+**Urban (Mount Lebanon, North Lebanon)**
+- **North Lebanon** tends to look **healthier** (higher **Good%**, lower **Bad%**).
+- **Mount Lebanon** is **Acceptable-heavy** with non-trivial **Bad%**—classic urban stress (aging assets, pressure/leak issues). **DMAs/PRVs, leak detection, and valve rehab** can move **Yellow → Green** fast.
+
+**Agriculture/Rural (Akkar, Bekaa, Baalbek-Hermel, Nabatieh, South)**
+- **Baalbek-Hermel** is the **rehab front-runner**: very low **Good%**, high **Bad%** → **first in the capex queue** (mains renewal, pressure zoning, metering).
+- **Bekaa** is **uneven** (decent Good% yet meaningful Bad%) → target **pockets** rather than one-size-fits-all.
+- **Akkar & Nabatieh** often show **elevated Bad%** in places—pair **network fixes** with the seasonal dependence seen in the springs chart.
+- **South** generally more **balanced**—protect with **preventive maintenance** so it doesn’t slide.
+
+**Bottom line:** Rural belts need **hard upgrades** where **Bad%** clusters (especially **Baalbek-Hermel**), while **urban Mount Lebanon** benefits most from **operational optimization** (pressure/leaks) before major capex. Use this split to justify **different playbooks** by area type.
+""")
+
+
 
 
 

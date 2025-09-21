@@ -377,7 +377,7 @@ else:
 with st.expander("💡 Insights (Governorates vs District — Network condition)"):
     st.markdown("""
 **Governorates insights: Network condition**
-- **Baalbek-Hermel** is the **weakest**: **very low Good%** and **high Bad%** → first in the rehab queue.
+- **Baalbek-Hermel** is the **weakest**: **very low Good%** and **high Bad%** → first in the rehab queue since towns are dispersed, pipes are old/lengthy, and pumps experience power outages (which results in low pressure/more leaks/poorer water).
 - **Mount Lebanon** is **Acceptable-heavy** with a notable **Bad%** → classic urban stress; convert **Yellow→Green** via pressure management and leak reduction (DMAs/PRVs).
 - **Bekaa** is **mixed**, it has decent **Good%** but a **meaningful Bad%** pointing to uneven performance across towns.
 - **North Lebanon** tends to look **healthier** (higher **Good%**, lower **Bad%**) than **Mount Lebanon**.
@@ -411,6 +411,7 @@ with st.expander("🏙️ Urban vs 🌾 Agriculture/Rural"):
 
 **Bottom line:** Rural belts need **hard upgrades** where **Bad%** clusters (especially **Baalbek-Hermel**), while **urban Mount Lebanon** benefits most from **operational optimization** (pressure/leaks) before major capex. Use this split to justify **different playbooks** by area type.
 """)
+
 
 
 

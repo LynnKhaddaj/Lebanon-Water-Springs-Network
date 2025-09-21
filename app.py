@@ -110,7 +110,7 @@ for c in [COL_SPRING_PERM, COL_SPRING_SEAS, COL_STATE_GOOD, COL_STATE_ACC, COL_S
 GOV_BUCKET = {
     "Beirut": "Urban",
     "Mount Lebanon": "Urban",
-    "North Lebanon": "Urban",      # included as Urban per your request
+    "North Lebanon": "Urban",
     "Bekaa": "Rural/Agri",
     "Baalbek-Hermel": "Rural/Agri",
     "Nabatieh": "Rural/Agri",
@@ -121,15 +121,16 @@ GOV_BUCKET = {
 
 URBAN_DISTRICTS = {
     "Tripoli", "Sidon", "Tyre", "Baabda", "Metn", "Aley",
-    "Keserwan", "Chouf", "Byblos", "Jbeil", TARGET_MINIEH  # include target if you decide it’s urban
+    "Keserwan", "Chouf", "Byblos", "Jbeil",  # Jbeil alias handled above
+    # If you want Minieh - Danniyeh as Urban instead, move it into this set:
+    # TARGET_MINIEH,
 }
 RURAL_DISTRICTS = {
     "Baalbek", "Hermel", "Zahle", "West Bekaa", "Rachaya",
     "Bint Jbeil", "Marjeyoun", "Hasbaya", "Jezzine",
-    TARGET_MINIEH,  # if you prefer it rural, keep it here instead of URBAN_DISTRICTS
+    TARGET_MINIEH,  # currently classified Rural/Agri
     "Bcharre", "Koura", "Batroun", "Zgharta", "Akkar"
 }
-# (You can keep TARGET_MINIEH in only one of the sets above; I left it in RURAL by default.)
 
 def area_bucket(row, level):
     g = str(row.get("GovernorateName", "")).strip()
@@ -174,6 +175,12 @@ if len(areas_all) == 0:
 pick_areas = st.sidebar.multiselect(f"{group_level}s", areas_all, default=areas_all)
 if len(pick_areas) == 0:
     st.warning("No areas selected. Pick at least one.")
+    st.stop()
+
+# <-- THIS IS THE PIECE THAT WAS MISSING:
+data = data0[data0[GROUP_COL].isin(pick_areas)].copy()
+if data.empty:
+    st.warning("No rows after filtering. Adjust your selections.")
     st.stop()
 
 display_mode = st.sidebar.radio(

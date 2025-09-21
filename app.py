@@ -372,4 +372,3 @@ else:
 st.success("✅ Interactions wired: Aggregation level + Area profile + Governorate/District subset + Value mode, all changing the data in the charts.")
 
 
-
